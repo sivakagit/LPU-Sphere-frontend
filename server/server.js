@@ -10,16 +10,16 @@ const User = require("./models/User");
 const ClassModel = require("./models/Class");
 const Message = require("./models/Message");
 
-// --- Initialize Express ---
+// --- CORS setup ---
 const app = express();
 
-// --- CORS setup ---
 app.use(
   cors({
     origin: [
-      "http://localhost:8080",                       // for local dev
-      "https://lpu-sphere-frontend.vercel.app"       // for deployed frontend
+      "http://localhost:8080", 
+      "https://lpu-sphere-frontend-ecru.vercel.app"
     ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
 );
