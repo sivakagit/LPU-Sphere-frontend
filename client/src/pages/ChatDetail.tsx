@@ -34,7 +34,7 @@ const ChatDetail = () => {
   useEffect(() => {
     const fetchMessages = async () => {
       try {
-        const res = await api.get(`/chats/${id}/messages`, {
+        const res = await api.get(`/api/chats/${id}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setMessages(res.data.messages || []);
