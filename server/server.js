@@ -2,7 +2,6 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
-const cors = require("cors");
 const jwt = require("jsonwebtoken");
 
 // --- Models ---
@@ -13,11 +12,11 @@ const Message = require("./models/Message");
 // --- Express App ---
 const app = express();
 
-// ✅ CORS setup — only allow your current frontend
+// --- CORS Configuration ---
 const allowedOrigins = [
-  "http://localhost:8080",
   "http://localhost:5173",
-  "https://lpu-sphere-frontend-ten.vercel.app"  // ✅ new frontend only
+  "http://localhost:8080",
+  "https://lpu-sphere-frontend-ten.vercel.app",
 ];
 
 app.use((req, res, next) => {
@@ -28,10 +27,7 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
+  if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
 
@@ -39,47 +35,40 @@ app.use(express.json());
 
 // --- Config ---
 const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || "secret";
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 // --- MongoDB Connection ---
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log("✅ Mongo connected");
-    console.log("Connected DB:", mongoose.connection?.name || "unknown");
+    console.log("✅ MongoDB connected:", mongoose.connection.name);
   })
-  .catch((err) => console.error("❌ Mongo connection error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // --- Auth Middleware ---
-const authMiddleware = async (req, res, next) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: "No token provided" });
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "No token provided" });
 
-  const token = auth.split(" ")[1];
+  const token = authHeader.split(" ")[1];
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
     next();
-  } catch (e) {
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
 
 // --- Routes ---
+
 app.get("/api/health", (req, res) => res.json({ ok: true, status: "Backend running" }));
 
-app.get("/api/debug/users", async (req, res) => {
-  try {
-    const users = await User.find({}, { _id: 0, regNo: 1, name: 1 });
-    res.json({ count: users.length, users });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// --- Auth Route ---
+// ✅ Auth Route
 app.post("/api/auth/login", async (req, res) => {
   const { regNo, password } = req.body;
-  if (!regNo || !password) return res.status(400).json({ error: "regNo and password required" });
+  if (!regNo || !password)
+    return res.status(400).json({ error: "regNo and password required" });
 
   try {
     const user = await User.findOne({ regNo });
@@ -108,10 +97,11 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// --- Chat Routes ---
+// ✅ Chat List (Groups) — persistent after logout
 app.get("/api/chats", authMiddleware, async (req, res) => {
   try {
     const regNo = req.user.regNo;
+
     const classes = await ClassModel.find({
       $or: [{ members: regNo }, { faculty: regNo }],
     })
@@ -119,18 +109,18 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
       .lean();
 
     const chats = await Promise.all(
-      classes.map(async (c) => {
-        const msg = await Message.findOne({ classId: c.classId })
+      classes.map(async (cls) => {
+        const lastMsg = await Message.findOne({ classId: cls.classId })
           .sort({ createdAt: -1 })
           .lean();
 
         return {
-          id: c.classId,
-          name: c.className || c.name,
-          avatar: c.classId?.substring(0, 5) || "CLASS",
+          id: cls.classId,
+          name: cls.className,
+          avatar: cls.classId.slice(0, 4).toUpperCase(),
           type: "group",
-          lastMessage: msg ? msg.text : null,
-          time: msg ? msg.createdAt : null,
+          lastMessage: lastMsg ? lastMsg.text : "No messages yet",
+          time: lastMsg ? lastMsg.createdAt : null,
           unread: 0,
         };
       })
@@ -143,20 +133,19 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Message Routes ---
+// ✅ Message List (per group)
 app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
   try {
-    const { regNo } = req.user;
     const { classId } = req.params;
+    const { regNo } = req.user;
 
     const cls = await ClassModel.findOne({ classId });
     if (!cls) return res.status(404).json({ error: "Class not found" });
 
-    if (!cls.members.includes(regNo) && cls.faculty !== regNo) {
-      return res.status(403).json({ error: "Not authorized" });
-    }
+    if (!cls.members.includes(regNo) && cls.faculty !== regNo)
+      return res.status(403).json({ error: "Access denied" });
 
-    const messages = await Message.find({ classId }).sort({ createdAt: 1 }).lean();
+    const messages = await Message.find({ classId }).sort({ createdAt: 1 });
     res.json({ messages });
   } catch (err) {
     console.error("Error fetching messages:", err);
@@ -164,31 +153,30 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
   }
 });
 
+// ✅ Send a new message (saved in Mongo)
 app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
   try {
-    const { regNo } = req.user;
-    const { classId } = req.params;
     const { text } = req.body;
+    const { classId } = req.params;
+    const { regNo, name } = req.user;
 
-    if (!text) return res.status(400).json({ error: "Text required" });
+    if (!text.trim()) return res.status(400).json({ error: "Text required" });
 
     const cls = await ClassModel.findOne({ classId });
     if (!cls) return res.status(404).json({ error: "Class not found" });
 
-    if (!cls.members.includes(regNo) && cls.faculty !== regNo) {
+    if (!cls.members.includes(regNo) && cls.faculty !== regNo)
       return res.status(403).json({ error: "Not authorized" });
-    }
 
-    const user = await User.findOne({ regNo });
     const message = new Message({
       classId,
       senderRegNo: regNo,
-      senderName: user?.name || regNo,
+      senderName: name,
       text,
       createdAt: new Date(),
     });
-
     await message.save();
+
     res.json({ message });
   } catch (err) {
     console.error("Error posting message:", err);
@@ -197,9 +185,7 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
 });
 
 // --- Root Route ---
-app.get("/", (req, res) => {
-  res.send("✅ LPU Sphere Backend is live and running!");
-});
+app.get("/", (req, res) => res.send("✅ LPU Sphere Backend is live!"));
 
 // --- Export for Vercel ---
 module.exports = app;
