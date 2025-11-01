@@ -4,7 +4,7 @@ import { Send, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import api from "@/api/axios";
-import { socket } from "@/socket";
+import socket from "@/socket"; // ✅ FIXED: remove `{}`
 
 interface Message {
   _id: string;
@@ -25,35 +25,49 @@ const ChatDetail = () => {
   const [loading, setLoading] = useState(true);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const token = localStorage.getItem("token");
   const userRegNo = user?.regNo;
   const userName = user?.name || "You";
 
-  // Fetch messages
+  // ✅ Fetch messages (authorized)
   useEffect(() => {
     const fetchMessages = async () => {
-      const res = await api.get(`/chats/${id}/messages`);
-      setMessages(res.data.messages || []);
-      setLoading(false);
+      try {
+        const res = await api.get(`/api/chats/${id}/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setMessages(res.data.messages || []);
+      } catch (err) {
+        console.error("Error fetching messages:", err);
+      } finally {
+        setLoading(false);
+      }
     };
-    fetchMessages();
-  }, [id]);
+    if (id) fetchMessages();
+  }, [id, token]);
 
-  // Join socket room
+  // ✅ Join room and listen for realtime messages
   useEffect(() => {
     if (!id) return;
+
     socket.emit("joinRoom", id);
 
-    socket.on("newMessage", (msg: Message) => {
-      if (msg.classId === id) setMessages((prev) => [...prev, msg]);
-    });
+    const handleNewMessage = (msg: Message) => {
+      if (msg.classId === id) {
+        setMessages((prev) => [...prev, msg]);
+      }
+    };
+
+    socket.on("newMessage", handleNewMessage);
 
     return () => {
-      socket.off("newMessage");
+      socket.off("newMessage", handleNewMessage);
     };
   }, [id]);
 
+  // ✅ Send message
   const handleSend = () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !id) return;
 
     socket.emit("sendMessage", {
       classId: id,
@@ -65,6 +79,7 @@ const ChatDetail = () => {
     setMessage("");
   };
 
+  // ✅ Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -80,13 +95,8 @@ const ChatDetail = () => {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <div className="flex items-center p-4 shadow bg-primary text-white">
-        <ArrowLeft
-          className="mr-3 cursor-pointer"
-          onClick={() => navigate("/app")}
-        />
-        <h1 className="text-lg font-semibold flex-1">
-          Group Chat ({id})
-        </h1>
+        <ArrowLeft className="mr-3 cursor-pointer" onClick={() => navigate("/app")} />
+        <h1 className="text-lg font-semibold flex-1">Group Chat ({id})</h1>
       </div>
 
       {/* Messages */}
@@ -104,9 +114,7 @@ const ChatDetail = () => {
                 }`}
               >
                 {!isMe && (
-                  <div className="text-xs font-bold mb-1">
-                    {msg.senderName}
-                  </div>
+                  <div className="text-xs font-bold mb-1">{msg.senderName}</div>
                 )}
                 {msg.text}
               </div>

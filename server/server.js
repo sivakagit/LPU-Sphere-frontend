@@ -14,7 +14,7 @@ const Message = require("./models/Message");
 
 // --- Express App ---
 const app = express();
-const server = http.createServer(app); // for socket.io
+const server = http.createServer(app);
 
 // --- Config ---
 const PORT = process.env.PORT || 4000;
@@ -54,43 +54,54 @@ const io = new Server(server, {
 // --- JWT Middleware ---
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "No token provided" });
+  if (!token) return res.status(401).json({ success: false, message: "No token provided" });
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch {
-    return res.status(401).json({ error: "Invalid token" });
+    return res.status(401).json({ success: false, message: "Invalid token" });
   }
 };
 
 // --- Auth Login ---
 app.post("/api/auth/login", async (req, res) => {
-  const { regNo, password } = req.body;
-  if (!regNo || !password)
-    return res.status(400).json({ error: "regNo and password required" });
+  try {
+    const { regNo, password } = req.body;
+    if (!regNo || !password)
+      return res.status(400).json({ success: false, message: "regNo and password required" });
 
-  const user = await User.findOne({ regNo });
-  if (!user) return res.status(401).json({ error: "User not found" });
-  if (user.password !== password)
-    return res.status(401).json({ error: "Invalid password" });
+    const user = await User.findOne({ regNo });
+    if (!user)
+      return res.status(401).json({ success: false, message: "User not found" });
 
-  const token = jwt.sign(
-    { regNo: user.regNo, name: user.name, role: user.role },
-    JWT_SECRET,
-    { expiresIn: "8h" }
-  );
+    if (user.password !== password)
+      return res.status(401).json({ success: false, message: "Invalid password" });
 
-  res.json({
-    token,
-    user: {
+    const token = jwt.sign(
+      { regNo: user.regNo, name: user.name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    const safeUser = {
       regNo: user.regNo,
       name: user.name,
       role: user.role,
       classes: user.classes,
-    },
-  });
+    };
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: safeUser,
+    });
+  } catch (err) {
+    console.error("🔥 Login error:", err);
+    res.status(500).json({ success: false, message: "Server error during login" });
+  }
 });
 
 // --- Fetch all chats for user ---
@@ -115,7 +126,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
     })
   );
 
-  res.json({ chats });
+  res.json({ success: true, chats });
 });
 
 // --- Fetch messages for a group ---
@@ -124,12 +135,12 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
   const { regNo } = req.user;
 
   const cls = await ClassModel.findOne({ classId });
-  if (!cls) return res.status(404).json({ error: "Class not found" });
+  if (!cls) return res.status(404).json({ success: false, message: "Class not found" });
   if (!cls.members.includes(regNo) && cls.faculty !== regNo)
-    return res.status(403).json({ error: "Access denied" });
+    return res.status(403).json({ success: false, message: "Access denied" });
 
   const messages = await Message.find({ classId }).sort({ createdAt: 1 });
-  res.json({ messages });
+  res.json({ success: true, messages });
 });
 
 // --- SOCKET.IO ---
@@ -141,7 +152,6 @@ io.on("connection", (socket) => {
     console.log(`👥 Joined room: ${classId}`);
   });
 
-  // ✅ Real-time message handling
   socket.on("sendMessage", async (data) => {
     try {
       const { classId, regNo, name, text } = data;
@@ -167,9 +177,8 @@ io.on("connection", (socket) => {
   });
 });
 
-app.get("/", (req, res) =>
-  res.send("✅ LPU Sphere backend running with realtime chat!")
-);
+// --- Root ---
+app.get("/", (req, res) => res.send("✅ LPU Sphere backend running with realtime chat!"));
 
 server.listen(PORT, "0.0.0.0", () =>
   console.log(`🚀 Server running on port ${PORT}`)
