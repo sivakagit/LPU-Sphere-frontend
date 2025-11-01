@@ -10,19 +10,18 @@ const User = require("./models/User");
 const ClassModel = require("./models/Class");
 const Message = require("./models/Message");
 
-// --- CORS setup ---
-const app = express();
-
 app.use(
   cors({
     origin: [
-      "http://localhost:8080", 
-      "https://lpu-sphere-frontend-ecru.vercel.app"
+      "http://localhost:8080",
+      "https://lpu-sphere-frontend-ecru.vercel.app",
+      "https://lpu-sphere-frontend-six.vercel.app" // ✅ your current frontend URL
     ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
+
 
 app.use(express.json());
 
