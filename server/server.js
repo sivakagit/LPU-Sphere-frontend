@@ -10,15 +10,14 @@ const User = require("./models/User");
 const ClassModel = require("./models/Class");
 const Message = require("./models/Message");
 
-// --- Express app ---
+// --- Express App ---
 const app = express();
 
-// ✅ --- CORS setup ---
+// ✅ CORS setup — only allow your current frontend
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:5173",
-  "https://lpu-sphere-frontend-six.vercel.app",
-  "https://lpu-sphere-frontend-ecru.vercel.app",
+  "https://lpu-sphere-frontend-ten.vercel.app"  // ✅ new frontend only
 ];
 
 app.use((req, res, next) => {
@@ -43,17 +42,12 @@ const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "secret";
 
 // --- MongoDB Connection ---
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log("✅ Mongo connected:", mongoose.connection.name);
-  } catch (err) {
-    console.error("❌ Mongo connection error:", err.message);
-  }
-};
-connectDB();
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("✅ Mongo connected");
+    console.log("Connected DB:", mongoose.connection?.name || "unknown");
+  })
+  .catch((err) => console.error("❌ Mongo connection error:", err));
 
 // --- Auth Middleware ---
 const authMiddleware = async (req, res, next) => {
@@ -65,15 +59,13 @@ const authMiddleware = async (req, res, next) => {
     const payload = jwt.verify(token, JWT_SECRET);
     req.user = payload;
     next();
-  } catch {
+  } catch (e) {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
 
 // --- Routes ---
-app.get("/api/health", (req, res) =>
-  res.json({ ok: true, status: "Backend running" })
-);
+app.get("/api/health", (req, res) => res.json({ ok: true, status: "Backend running" }));
 
 app.get("/api/debug/users", async (req, res) => {
   try {
@@ -87,10 +79,7 @@ app.get("/api/debug/users", async (req, res) => {
 // --- Auth Route ---
 app.post("/api/auth/login", async (req, res) => {
   const { regNo, password } = req.body;
-
-  if (!regNo || !password) {
-    return res.status(400).json({ error: "regNo and password required" });
-  }
+  if (!regNo || !password) return res.status(400).json({ error: "regNo and password required" });
 
   try {
     const user = await User.findOne({ regNo });
@@ -114,6 +103,7 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (err) {
+    console.error("Login error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -124,7 +114,9 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
     const regNo = req.user.regNo;
     const classes = await ClassModel.find({
       $or: [{ members: regNo }, { faculty: regNo }],
-    }).select("-__v");
+    })
+      .select("-__v")
+      .lean();
 
     const chats = await Promise.all(
       classes.map(async (c) => {
@@ -146,11 +138,12 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
 
     res.json({ chats });
   } catch (err) {
+    console.error("Error fetching chats:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// --- Messages Routes ---
+// --- Message Routes ---
 app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
   try {
     const { regNo } = req.user;
@@ -163,9 +156,10 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const messages = await Message.find({ classId }).sort({ createdAt: 1 });
+    const messages = await Message.find({ classId }).sort({ createdAt: 1 }).lean();
     res.json({ messages });
   } catch (err) {
+    console.error("Error fetching messages:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -197,6 +191,7 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
     await message.save();
     res.json({ message });
   } catch (err) {
+    console.error("Error posting message:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
