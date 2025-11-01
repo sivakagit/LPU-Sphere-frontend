@@ -13,7 +13,7 @@ const Message = require("./models/Message");
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:5173",
-  "https://lpu-sphere-frontend-ecru.vercel.app",
+  "https://lpu-sphere-backend.vercel.app",
   "https://lpu-sphere-frontend-six.vercel.app"
 ];
 
