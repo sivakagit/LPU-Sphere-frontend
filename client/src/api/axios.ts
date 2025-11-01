@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://lpu-sphere-backend.vercel.app/api", // 👈 only one '/api'
+  baseURL: "https://lpu-sphere-frontend-rbpx.onrender.com/api", // 👈 only one '/api'
   headers: {
     "Content-Type": "application/json",
   },
