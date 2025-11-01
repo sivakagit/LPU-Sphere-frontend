@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import api from "@/api/axios"; // ✅ using the new API file
+import api from "@/api"; // ✅ using your axios instance
 
 interface Message {
   _id: string;
@@ -55,7 +55,6 @@ const ChatDetail = () => {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Get user info from localStorage
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userRegNo = user?.regNo || "";
   const userName = user?.name || "You";
@@ -64,7 +63,7 @@ const ChatDetail = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Fetch chat info and messages
+  // Fetch chats + messages
   useEffect(() => {
     const fetchChatData = async () => {
       if (!id) return;
@@ -72,15 +71,13 @@ const ChatDetail = () => {
       try {
         setLoading(true);
 
-        // ✅ Fetch all chats
-        const chatRes = await api.get("/chats");
+        // ✅ Fetch chat list
+        const chatRes = await api.get("/api/chats");
         const currentChat = chatRes.data.chats?.find((chat: any) => chat.id === id);
-        if (currentChat) {
-          setChatInfo(currentChat);
-        }
+        if (currentChat) setChatInfo(currentChat);
 
-        // ✅ Fetch messages for this chat
-        const messagesRes = await api.get(`/chats/${id}/messages`);
+        // ✅ Fetch messages
+        const messagesRes = await api.get(`/api/chats/${id}/messages`);
         setMessages(messagesRes.data.messages || []);
         setError("");
       } catch (err: any) {
@@ -94,18 +91,17 @@ const ChatDetail = () => {
     fetchChatData();
   }, [id]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Send a message
   const handleSend = async () => {
     if (!message.trim() || sending) return;
 
     try {
       setSending(true);
-      const response = await api.post(`/chats/${id}/messages`, {
+
+      const response = await api.post(`/api/chats/${id}/messages`, {
         text: message.trim(),
         senderRegNo: userRegNo,
         senderName: userName,
@@ -126,10 +122,7 @@ const ChatDetail = () => {
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   };
 
   if (loading) {
@@ -167,6 +160,7 @@ const ChatDetail = () => {
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
+
         <div
           className="flex-1 cursor-pointer flex items-center gap-2"
           onClick={() => navigate(`/group-info/${id}`)}
@@ -178,6 +172,7 @@ const ChatDetail = () => {
             {chatInfo?.name || id}
           </h1>
         </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="text-primary-foreground">
@@ -208,12 +203,6 @@ const ChatDetail = () => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto pb-4">
-        <div className="flex justify-center my-3">
-          <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-xs font-semibold">
-            Today
-          </span>
-        </div>
-
         {messages.length === 0 ? (
           <div className="text-center text-muted-foreground mt-10">
             <p className="text-lg font-semibold mb-2">No messages yet</p>
@@ -269,16 +258,16 @@ const ChatDetail = () => {
       <div className="sticky bottom-0 bg-secondary border-t p-3">
         {showAttachments && (
           <div className="flex items-center gap-2 mb-3">
-            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
+            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
               <Image className="w-5 h-5" />
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
+            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
               <FileText className="w-5 h-5" />
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
+            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
               <BarChart3 className="w-5 h-5" />
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
+            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
               <Printer className="w-5 h-5" />
             </button>
           </div>
