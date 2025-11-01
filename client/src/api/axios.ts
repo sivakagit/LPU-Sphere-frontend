@@ -1,11 +1,13 @@
+// api/axios.js
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://lpu-sphere-frontend-rbpx.onrender.com/api", // 👈 only one '/api'
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: "https://lpu-sphere-frontend.onrender.com/api",
+  headers: { "Content-Type": "application/json" },
 });
+
+
+
 
 // ✅ Add JWT token automatically to all requests
 api.interceptors.request.use((config) => {
