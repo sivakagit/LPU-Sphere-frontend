@@ -16,49 +16,41 @@ const Message = require("./models/Message");
 const app = express();
 const server = http.createServer(app); // Required for socket.io
 
-// --- Socket.io Setup ---
-const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:8080",
-      "https://lpu-sphere-frontend-ten.vercel.app",
-    ],
-    methods: ["GET", "POST"],
-  },
-});
+// --- Config ---
+const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-// --- Middleware ---
-app.use(express.json());
-
-// ✅ CORS Configuration
+// --- Allowed Origins ---
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:8080",
   "https://lpu-sphere-frontend-rbpx.onrender.com",
+  "https://lpu-sphere-frontend-ten.vercel.app",
 ];
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  if (req.method === "OPTIONS") return res.sendStatus(200);
-  next();
-});
-
-// --- Config ---
-const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+// --- Middleware ---
+app.use(express.json());
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+  })
+);
 
 // --- MongoDB Connection ---
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected:", mongoose.connection.name))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
+
+// --- Socket.io Setup ---
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+  },
+});
 
 // --- Auth Middleware ---
 const authMiddleware = (req, res, next) => {
@@ -191,7 +183,7 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
 
     await message.save();
 
-    // 🔥 Emit the new message to everyone in the same class room
+    // 🔥 Emit to all clients in that room
     io.to(classId).emit("newMessage", message);
 
     res.json({ message });
@@ -203,18 +195,29 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
 
 // --- Root Route ---
 app.get("/", (req, res) => {
-  res.send("✅ LPU Sphere Backend is live and running!");
+  res.send("✅ LPU Sphere Backend is live and running with real-time chat!");
 });
 
-// --- Socket.IO Connection ---
+// --- SOCKET.IO CONNECTIONS ---
 io.on("connection", (socket) => {
   console.log("🟢 User connected:", socket.id);
 
+  // Join room
   socket.on("joinRoom", (classId) => {
     socket.join(classId);
     console.log(`👥 User joined room: ${classId}`);
   });
 
+  // --- Typing Indicator ---
+  socket.on("typing", ({ classId, user }) => {
+    socket.to(classId).emit("userTyping", { user });
+  });
+
+  socket.on("stopTyping", ({ classId, user }) => {
+    socket.to(classId).emit("userStopTyping", { user });
+  });
+
+  // Disconnect
   socket.on("disconnect", () => {
     console.log("🔴 User disconnected:", socket.id);
   });
