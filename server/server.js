@@ -17,6 +17,13 @@ const allowedOrigins = [
   "https://lpu-sphere-frontend-six.vercel.app"
 ];
 
+const allowedOrigins = [
+  "http://localhost:8080",
+  "http://localhost:5173",
+  "https://lpu-sphere-frontend-ecru.vercel.app",
+  "https://lpu-sphere-frontend-six.vercel.app"
+];
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
