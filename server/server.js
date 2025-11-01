@@ -1,37 +1,43 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+import express, { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
+// Load environment variables
+dotenv.config();
+
+// --- Models ---
+import User from "./models/User";
+import ClassModel from "./models/Class";
+import Message from "./models/Message";
+
+// --- Express App ---
 const app = express();
 
-// ✅ Explicit list of allowed origins
+// ✅ Allowed origins (adjust as needed)
 const allowedOrigins = [
-  "http://localhost:5173",
   "http://localhost:8080",
-  "https://lpu-sphere-frontend-ten.vercel.app", // your production frontend
+  "http://localhost:5173",
+  "https://lpu-sphere-frontend-ten.vercel.app", // your deployed frontend
 ];
 
-// ✅ Use the cors middleware properly
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-// ✅ This handles preflight OPTIONS requests automatically
-app.options("*", cors());
+// --- Middleware ---
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use(express.json());
-
 
 // --- Config ---
 const PORT = process.env.PORT || 4000;
