@@ -1,4 +1,4 @@
-/// --- Imports ---
+// --- Imports ---
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
@@ -13,11 +13,11 @@ const Message = require("./models/Message");
 // --- Express App ---
 const app = express();
 
-// ✅ CORS setup — allow local + frontend
+// ✅ CORS setup — only allow your current frontend
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:5173",
-  "https://lpu-sphere-frontend-ten.vercel.app" // ✅ current frontend
+  "https://lpu-sphere-frontend-ten.vercel.app"  // ✅ new frontend only
 ];
 
 app.use((req, res, next) => {
@@ -28,7 +28,10 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") return res.sendStatus(200);
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
   next();
 });
 
@@ -40,7 +43,10 @@ const JWT_SECRET = process.env.JWT_SECRET || "secret";
 
 // --- MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
+  .then(() => {
+    console.log("✅ Mongo connected");
+    console.log("Connected DB:", mongoose.connection?.name || "unknown");
+  })
   .catch((err) => console.error("❌ Mongo connection error:", err));
 
 // --- Auth Middleware ---
@@ -59,39 +65,25 @@ const authMiddleware = async (req, res, next) => {
 };
 
 // --- Routes ---
-
-// ✅ Health check
 app.get("/api/health", (req, res) => res.json({ ok: true, status: "Backend running" }));
 
-// ✅ Debug: list users (testing only)
 app.get("/api/debug/users", async (req, res) => {
   try {
-    const users = await User.find({}, { _id: 0, regNo: 1, name: 1, role: 1 });
+    const users = await User.find({}, { _id: 0, regNo: 1, name: 1 });
     res.json({ count: users.length, users });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Auth: Login route
+// --- Auth Route ---
 app.post("/api/auth/login", async (req, res) => {
   const { regNo, password } = req.body;
-
-  console.log("🟢 Login attempt:", regNo, password);
-
-  if (!regNo || !password) {
-    return res.status(400).json({ error: "regNo and password required" });
-  }
+  if (!regNo || !password) return res.status(400).json({ error: "regNo and password required" });
 
   try {
     const user = await User.findOne({ regNo });
-    console.log("🔍 Found user:", user);
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    if (user.password !== password) {
+    if (!user || user.password !== password) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -111,24 +103,27 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("🔥 Login error:", err);
-    res.status(500).json({ error: err.message || "Internal server error" });
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// ✅ Chat routes
+// --- Chat Routes ---
 app.get("/api/chats", authMiddleware, async (req, res) => {
   try {
     const regNo = req.user.regNo;
     const classes = await ClassModel.find({
       $or: [{ members: regNo }, { faculty: regNo }],
-    }).select("-__v").lean();
+    })
+      .select("-__v")
+      .lean();
 
     const chats = await Promise.all(
       classes.map(async (c) => {
         const msg = await Message.findOne({ classId: c.classId })
           .sort({ createdAt: -1 })
           .lean();
+
         return {
           id: c.classId,
           name: c.className || c.name,
@@ -143,12 +138,12 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
 
     res.json({ chats });
   } catch (err) {
-    console.error("💥 Error fetching chats:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Error fetching chats:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// ✅ Messages routes
+// --- Message Routes ---
 app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
   try {
     const { regNo } = req.user;
@@ -164,8 +159,8 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
     const messages = await Message.find({ classId }).sort({ createdAt: 1 }).lean();
     res.json({ messages });
   } catch (err) {
-    console.error("💥 Error fetching messages:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Error fetching messages:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -196,8 +191,8 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
     await message.save();
     res.json({ message });
   } catch (err) {
-    console.error("💥 Error posting message:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Error posting message:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
