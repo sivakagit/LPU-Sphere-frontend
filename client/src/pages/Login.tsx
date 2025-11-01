@@ -25,7 +25,7 @@ const Login = () => {
       setLoading(true);
       console.log("🔹 Attempting login with:", { regNo, password });
 
-      const { data } = await api.post("/auth/login", { regNo, password });
+      const { data } = await api.post("/api/auth/login", { regNo, password });
       console.log("✅ Login response:", data);
 
       // 🧩 Safety check — make sure data and user exist
