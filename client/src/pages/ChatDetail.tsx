@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Send, ArrowLeft, MoreVertical } from "lucide-react";
+import { Send, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import api from "@/api/axios";
@@ -23,45 +23,28 @@ const ChatDetail = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const userRegNo = user?.regNo || "";
+  const userRegNo = user?.regNo;
   const userName = user?.name || "You";
 
-  const scrollToBottom = () =>
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  // ✅ Fetch messages once when chat loads
+  // Fetch messages
   useEffect(() => {
     const fetchMessages = async () => {
-      try {
-        const res = await api.get(`/chats/${id}/messages`);
-        setMessages(res.data.messages || []);
-      } catch (error) {
-        console.error("Error loading messages:", error);
-      } finally {
-        setLoading(false);
-      }
+      const res = await api.get(`/chats/${id}/messages`);
+      setMessages(res.data.messages || []);
+      setLoading(false);
     };
     fetchMessages();
   }, [id]);
 
-  // ✅ Auto-scroll when new messages come in
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // ✅ Socket setup for real-time messaging
+  // Join socket room
   useEffect(() => {
     if (!id) return;
-
     socket.emit("joinRoom", id);
 
     socket.on("newMessage", (msg: Message) => {
-      if (msg.classId === id) {
-        setMessages((prev) => [...prev, msg]);
-      }
+      if (msg.classId === id) setMessages((prev) => [...prev, msg]);
     });
 
     return () => {
@@ -69,29 +52,22 @@ const ChatDetail = () => {
     };
   }, [id]);
 
-  // ✅ Send a message
-  const handleSend = async () => {
-    if (!message.trim() || sending) return;
-    setSending(true);
+  const handleSend = () => {
+    if (!message.trim()) return;
 
-    try {
-      // Send message to backend (stores in MongoDB)
-      const res = await api.post(`/chats/${id}/messages`, { text: message });
-      const newMsg = res.data.message;
+    socket.emit("sendMessage", {
+      classId: id,
+      regNo: userRegNo,
+      name: userName,
+      text: message.trim(),
+    });
 
-      // Immediately show in chat (optimistic UI)
-      setMessages((prev) => [...prev, newMsg]);
-
-      // Notify other clients
-      socket.emit("sendMessage", newMsg);
-
-      setMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-    } finally {
-      setSending(false);
-    }
+    setMessage("");
   };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   if (loading)
     return (
@@ -111,7 +87,6 @@ const ChatDetail = () => {
         <h1 className="text-lg font-semibold flex-1">
           Group Chat ({id})
         </h1>
-        <MoreVertical />
       </div>
 
       {/* Messages */}
@@ -121,15 +96,11 @@ const ChatDetail = () => {
           return (
             <div
               key={msg._id}
-              className={`flex mb-2 ${
-                isMe ? "justify-end" : "justify-start"
-              }`}
+              className={`flex mb-2 ${isMe ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`p-3 rounded-xl max-w-xs ${
-                  isMe
-                    ? "bg-primary text-white"
-                    : "bg-gray-200 text-black"
+                  isMe ? "bg-primary text-white" : "bg-gray-200 text-black"
                 }`}
               >
                 {!isMe && (
@@ -153,7 +124,7 @@ const ChatDetail = () => {
           placeholder="Type a message..."
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
         />
-        <Button onClick={handleSend} disabled={!message.trim() || sending}>
+        <Button onClick={handleSend}>
           <Send size={18} />
         </Button>
       </div>

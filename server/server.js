@@ -14,7 +14,7 @@ const Message = require("./models/Message");
 
 // --- Express App ---
 const app = express();
-const server = http.createServer(app); // Required for socket.io
+const server = http.createServer(app); // for socket.io
 
 // --- Config ---
 const PORT = process.env.PORT || 4000;
@@ -23,7 +23,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 // --- Allowed Origins ---
 const allowedOrigins = [
   "http://localhost:5173",
-  "http://localhost:8080",
   "https://lpu-sphere-frontend-rbpx.onrender.com",
   "https://lpu-sphere-frontend-ten.vercel.app",
 ];
@@ -41,8 +40,8 @@ app.use(
 // --- MongoDB Connection ---
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected:", mongoose.connection.name))
-  .catch((err) => console.error("❌ MongoDB connection error:", err.message));
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB error:", err.message));
 
 // --- Socket.io Setup ---
 const io = new Server(server, {
@@ -52,178 +51,126 @@ const io = new Server(server, {
   },
 });
 
-// --- Auth Middleware ---
+// --- JWT Middleware ---
 const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader)
-    return res.status(401).json({ error: "No token provided" });
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "No token provided" });
 
-  const token = authHeader.split(" ")[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
 
-// --- Health Route ---
-app.get("/api/health", (req, res) =>
-  res.json({ ok: true, status: "✅ Backend running fine" })
-);
-
-// --- AUTH LOGIN ---
+// --- Auth Login ---
 app.post("/api/auth/login", async (req, res) => {
   const { regNo, password } = req.body;
   if (!regNo || !password)
     return res.status(400).json({ error: "regNo and password required" });
 
-  try {
-    const user = await User.findOne({ regNo });
-    if (!user) return res.status(401).json({ error: "User not found" });
-    if (user.password !== password)
-      return res.status(401).json({ error: "Invalid password" });
+  const user = await User.findOne({ regNo });
+  if (!user) return res.status(401).json({ error: "User not found" });
+  if (user.password !== password)
+    return res.status(401).json({ error: "Invalid password" });
 
-    const token = jwt.sign(
-      { regNo: user.regNo, role: user.role, name: user.name },
-      JWT_SECRET,
-      { expiresIn: "8h" }
-    );
+  const token = jwt.sign(
+    { regNo: user.regNo, name: user.name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "8h" }
+  );
 
-    res.json({
-      token,
-      user: {
-        regNo: user.regNo,
-        name: user.name,
-        role: user.role,
-        classes: user.classes,
-      },
-    });
-  } catch (err) {
-    console.error("🔥 Login route error:", err);
-    res.status(500).json({ error: err.message || "Internal server error" });
-  }
+  res.json({
+    token,
+    user: {
+      regNo: user.regNo,
+      name: user.name,
+      role: user.role,
+      classes: user.classes,
+    },
+  });
 });
 
-// --- FETCH GROUP CHATS ---
+// --- Fetch all chats for user ---
 app.get("/api/chats", authMiddleware, async (req, res) => {
-  try {
-    const regNo = req.user.regNo;
-    const classes = await ClassModel.find({
-      $or: [{ members: regNo }, { faculty: regNo }],
-    }).lean();
+  const { regNo } = req.user;
+  const classes = await ClassModel.find({
+    $or: [{ members: regNo }, { faculty: regNo }],
+  }).lean();
 
-    const chats = await Promise.all(
-      classes.map(async (cls) => {
-        const lastMsg = await Message.findOne({ classId: cls.classId })
-          .sort({ createdAt: -1 })
-          .lean();
+  const chats = await Promise.all(
+    classes.map(async (cls) => {
+      const lastMsg = await Message.findOne({ classId: cls.classId })
+        .sort({ createdAt: -1 })
+        .lean();
 
-        return {
-          id: cls.classId,
-          name: cls.className,
-          avatar: cls.classId.slice(0, 4).toUpperCase(),
-          type: "group",
-          lastMessage: lastMsg ? lastMsg.text : "No messages yet",
-          time: lastMsg ? lastMsg.createdAt : null,
-          unread: 0,
-        };
-      })
-    );
+      return {
+        id: cls.classId,
+        name: cls.className,
+        lastMessage: lastMsg?.text || "No messages yet",
+        time: lastMsg?.createdAt || null,
+      };
+    })
+  );
 
-    res.json({ chats });
-  } catch (err) {
-    console.error("🔥 Error fetching chats:", err);
-    res.status(500).json({ error: err.message || "Internal server error" });
-  }
+  res.json({ chats });
 });
 
-// --- FETCH MESSAGES FOR A GROUP ---
+// --- Fetch messages for a group ---
 app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
-  try {
-    const { classId } = req.params;
-    const { regNo } = req.user;
+  const { classId } = req.params;
+  const { regNo } = req.user;
 
-    const cls = await ClassModel.findOne({ classId });
-    if (!cls) return res.status(404).json({ error: "Class not found" });
-    if (!cls.members.includes(regNo) && cls.faculty !== regNo)
-      return res.status(403).json({ error: "Access denied" });
+  const cls = await ClassModel.findOne({ classId });
+  if (!cls) return res.status(404).json({ error: "Class not found" });
+  if (!cls.members.includes(regNo) && cls.faculty !== regNo)
+    return res.status(403).json({ error: "Access denied" });
 
-    const messages = await Message.find({ classId }).sort({ createdAt: 1 });
-    res.json({ messages });
-  } catch (err) {
-    console.error("🔥 Error fetching messages:", err);
-    res.status(500).json({ error: err.message || "Internal server error" });
-  }
+  const messages = await Message.find({ classId }).sort({ createdAt: 1 });
+  res.json({ messages });
 });
 
-// --- SEND NEW MESSAGE ---
-app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
-  try {
-    const { text } = req.body;
-    const { classId } = req.params;
-    const { regNo, name } = req.user;
-
-    if (!text?.trim())
-      return res.status(400).json({ error: "Message text required" });
-
-    const cls = await ClassModel.findOne({ classId });
-    if (!cls) return res.status(404).json({ error: "Class not found" });
-    if (!cls.members.includes(regNo) && cls.faculty !== regNo)
-      return res.status(403).json({ error: "Not authorized" });
-
-    const message = new Message({
-      classId,
-      senderRegNo: regNo,
-      senderName: name,
-      text,
-      createdAt: new Date(),
-    });
-
-    await message.save();
-
-    // 🔥 Emit to all clients in that room
-    io.to(classId).emit("newMessage", message);
-
-    res.json({ message });
-  } catch (err) {
-    console.error("🔥 Error posting message:", err);
-    res.status(500).json({ error: err.message || "Internal server error" });
-  }
-});
-
-// --- Root Route ---
-app.get("/", (req, res) => {
-  res.send("✅ LPU Sphere Backend is live and running with real-time chat!");
-});
-
-// --- SOCKET.IO CONNECTIONS ---
+// --- SOCKET.IO ---
 io.on("connection", (socket) => {
-  console.log("🟢 User connected:", socket.id);
+  console.log("🟢 Socket connected:", socket.id);
 
-  // Join room
   socket.on("joinRoom", (classId) => {
     socket.join(classId);
-    console.log(`👥 User joined room: ${classId}`);
+    console.log(`👥 Joined room: ${classId}`);
   });
 
-  // --- Typing Indicator ---
-  socket.on("typing", ({ classId, user }) => {
-    socket.to(classId).emit("userTyping", { user });
+  // ✅ Real-time message handling
+  socket.on("sendMessage", async (data) => {
+    try {
+      const { classId, regNo, name, text } = data;
+      if (!text?.trim()) return;
+
+      const message = new Message({
+        classId,
+        senderRegNo: regNo,
+        senderName: name,
+        text,
+        createdAt: new Date(),
+      });
+
+      await message.save();
+      io.to(classId).emit("newMessage", message);
+    } catch (err) {
+      console.error("🔥 sendMessage error:", err.message);
+    }
   });
 
-  socket.on("stopTyping", ({ classId, user }) => {
-    socket.to(classId).emit("userStopTyping", { user });
-  });
-
-  // Disconnect
   socket.on("disconnect", () => {
-    console.log("🔴 User disconnected:", socket.id);
+    console.log("🔴 Disconnected:", socket.id);
   });
 });
 
-// --- Start Server ---
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.get("/", (req, res) =>
+  res.send("✅ LPU Sphere backend running with realtime chat!")
+);
+
+server.listen(PORT, "0.0.0.0", () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);

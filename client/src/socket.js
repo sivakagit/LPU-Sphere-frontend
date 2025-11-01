@@ -1,8 +1,6 @@
-// client/src/socket.js
 import { io } from "socket.io-client";
 
-// ✅ Use your Render backend URL
-export const socket = io("https://lpu-sphere-backend.onrender.com", {
+export const socket = io("https://lpu-sphere-backend.vercel.app", {
   transports: ["websocket"],
-  withCredentials: true,
+  reconnection: true,
 });
