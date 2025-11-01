@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import api from "@/api/axios"; // ✅ using your axios instance
+import api from "@/api/axios"; // ✅ your axios instance (baseURL includes /api)
 
 interface Message {
   _id: string;
@@ -67,19 +67,15 @@ const ChatDetail = () => {
   useEffect(() => {
     const fetchChatData = async () => {
       if (!id) return;
-
       try {
         setLoading(true);
 
-        // ✅ Use correct backend route
-        const chatRes = await api.get("/api/chats");
+        // ✅ Use correct routes (no extra /api)
+        const chatRes = await api.get("/chats");
         const currentChat = chatRes.data.chats?.find((chat: any) => chat.id === id);
-        if (currentChat) {
-          setChatInfo(currentChat);
-        }
+        if (currentChat) setChatInfo(currentChat);
 
-        // ✅ Correct message route
-        const messagesRes = await api.get(`/api/chats/${id}/messages`);
+        const messagesRes = await api.get(`/chats/${id}/messages`);
         setMessages(messagesRes.data.messages || []);
         setError("");
       } catch (err: any) {
@@ -102,9 +98,7 @@ const ChatDetail = () => {
 
     try {
       setSending(true);
-
-      // ✅ Fixed route
-      const response = await api.post(`/api/chats/${id}/messages`, {
+      const response = await api.post(`/chats/${id}/messages`, {
         text: message.trim(),
         senderRegNo: userRegNo,
         senderName: userName,
