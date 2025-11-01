@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Search, Calendar, MessageCircle, Settings } from "lucide-react";
 import ChatItem from "./ChatItem";
-import axios from "axios";
+import api from "@/api/axios"; // ✅ using axios instance (auto includes baseURL + token)
 
 interface Chat {
   id: string;
@@ -26,20 +26,14 @@ const Chats = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userRegNo = user?.regNo;
 
-  // ✅ Fetch chat data
+  // ✅ Fetch chats using central API instance
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get("http://localhost:4000/api/chats", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
+        const res = await api.get("/api/chats"); // ✅ backend route
         console.log("✅ Chats API response:", res.data);
-        setClasses(res.data.chats || []); // ✅ Use correct array
-      } catch (error) {
+        setClasses(res.data.chats || []);
+      } catch (error: any) {
         console.error("❌ Chats fetch failed:", error);
         setClasses([]);
       } finally {
@@ -49,14 +43,14 @@ const Chats = () => {
     fetchChats();
   }, []);
 
-  // Scroll animation
+  // ✅ Header scroll animation
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ✅ Proper filtering by name or id
+  // ✅ Filtered chats
   const filteredChats = Array.isArray(classes)
     ? classes.filter(
         (chat) =>
@@ -68,7 +62,9 @@ const Chats = () => {
   return (
     <div className="pb-20">
       {/* Sticky Header */}
-      <div className={`sticky top-[60px] z-20 bg-background transition-all duration-300`}>
+      <div
+        className={`sticky top-[60px] z-20 bg-background transition-all duration-300`}
+      >
         <div
           className={`px-4 transition-all duration-300 ${
             isScrolled ? "py-2" : "pt-4 pb-2"
@@ -113,9 +109,13 @@ const Chats = () => {
       {/* Chat List */}
       <div>
         {loading ? (
-          <p className="text-center text-muted-foreground mt-6">Loading chats...</p>
+          <p className="text-center text-muted-foreground mt-6">
+            Loading chats...
+          </p>
         ) : filteredChats.length === 0 ? (
-          <p className="text-center text-muted-foreground mt-6">No chats found.</p>
+          <p className="text-center text-muted-foreground mt-6">
+            No chats found.
+          </p>
         ) : (
           filteredChats.map((chat) => (
             <ChatItem
