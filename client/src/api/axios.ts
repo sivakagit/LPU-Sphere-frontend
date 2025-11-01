@@ -2,7 +2,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://lpu-sphere-frontend.onrender.com/api",
+  baseURL: "https://lpu-sphere-frontend.onrender.com/",
   headers: { "Content-Type": "application/json" },
 });
 
