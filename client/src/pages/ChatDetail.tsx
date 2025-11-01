@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import api from "@/api"; // ✅ using your axios instance
+import api from "@/api/axios"; // ✅ using your axios instance
 
 interface Message {
   _id: string;
@@ -63,7 +63,7 @@ const ChatDetail = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Fetch chats + messages
+  // ✅ Fetch chat info and messages
   useEffect(() => {
     const fetchChatData = async () => {
       if (!id) return;
@@ -71,12 +71,14 @@ const ChatDetail = () => {
       try {
         setLoading(true);
 
-        // ✅ Fetch chat list
+        // ✅ Use correct backend route
         const chatRes = await api.get("/api/chats");
         const currentChat = chatRes.data.chats?.find((chat: any) => chat.id === id);
-        if (currentChat) setChatInfo(currentChat);
+        if (currentChat) {
+          setChatInfo(currentChat);
+        }
 
-        // ✅ Fetch messages
+        // ✅ Correct message route
         const messagesRes = await api.get(`/api/chats/${id}/messages`);
         setMessages(messagesRes.data.messages || []);
         setError("");
@@ -101,6 +103,7 @@ const ChatDetail = () => {
     try {
       setSending(true);
 
+      // ✅ Fixed route
       const response = await api.post(`/api/chats/${id}/messages`, {
         text: message.trim(),
         senderRegNo: userRegNo,
@@ -122,7 +125,10 @@ const ChatDetail = () => {
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   if (loading) {
@@ -160,7 +166,6 @@ const ChatDetail = () => {
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
-
         <div
           className="flex-1 cursor-pointer flex items-center gap-2"
           onClick={() => navigate(`/group-info/${id}`)}
@@ -172,7 +177,6 @@ const ChatDetail = () => {
             {chatInfo?.name || id}
           </h1>
         </div>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="text-primary-foreground">
@@ -203,6 +207,12 @@ const ChatDetail = () => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto pb-4">
+        <div className="flex justify-center my-3">
+          <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-xs font-semibold">
+            Today
+          </span>
+        </div>
+
         {messages.length === 0 ? (
           <div className="text-center text-muted-foreground mt-10">
             <p className="text-lg font-semibold mb-2">No messages yet</p>
@@ -258,16 +268,16 @@ const ChatDetail = () => {
       <div className="sticky bottom-0 bg-secondary border-t p-3">
         {showAttachments && (
           <div className="flex items-center gap-2 mb-3">
-            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
+            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
               <Image className="w-5 h-5" />
             </button>
-            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
+            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
               <FileText className="w-5 h-5" />
             </button>
-            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
+            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
               <BarChart3 className="w-5 h-5" />
             </button>
-            <button className="flex-1 p-3 bg-card rounded-xl hover:bg-muted flex items-center justify-center">
+            <button className="flex-1 flex items-center justify-center gap-2 p-3 bg-card rounded-xl hover:bg-muted">
               <Printer className="w-5 h-5" />
             </button>
           </div>
