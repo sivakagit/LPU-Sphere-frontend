@@ -1,34 +1,36 @@
-// --- Imports ---
-require("dotenv").config();
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const jwt = require("jsonwebtoken");
+import express, { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 // --- Models ---
-const User = require("./models/User");
-const ClassModel = require("./models/Class");
-const Message = require("./models/Message");
+import User from "./models/User";
+import ClassModel from "./models/Class";
+import Message from "./models/Message";
 
 // --- Express App ---
 const app = express();
 
-// ✅ CORS setup — only allow your current frontend
+// ✅ Allowed origins (adjust as needed)
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:5173",
-  "https://lpu-sphere-frontend-ten.vercel.app"  // ✅ new frontend only
+  "https://lpu-sphere-frontend-ten.vercel.app", // your deployed frontend
 ];
 
-app.use((req, res, next) => {
+// --- Middleware ---
+app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -40,24 +42,33 @@ app.use(express.json());
 // --- Config ---
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "secret";
+const MONGO_URI = process.env.MONGO_URI as string;
 
 // --- MongoDB Connection ---
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(MONGO_URI)
   .then(() => {
-    console.log("✅ Mongo connected");
-    console.log("Connected DB:", mongoose.connection?.name || "unknown");
+    console.log("✅ MongoDB connected successfully");
   })
-  .catch((err) => console.error("❌ Mongo connection error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+mongoose.connection.on("error", (err) => {
+  console.error("🔴 MongoDB connection error:", err);
+});
+
+mongoose.connection.on("connected", () => {
+  console.log("🟢 MongoDB connection established");
+});
 
 // --- Auth Middleware ---
-const authMiddleware = async (req, res, next) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: "No token provided" });
+const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: "No token provided" });
 
-  const token = auth.split(" ")[1];
+  const token = authHeader.split(" ")[1];
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
+    (req as any).user = payload;
     next();
   } catch (e) {
     return res.status(401).json({ error: "Invalid token" });
@@ -65,21 +76,27 @@ const authMiddleware = async (req, res, next) => {
 };
 
 // --- Routes ---
-app.get("/api/health", (req, res) => res.json({ ok: true, status: "Backend running" }));
+// Health check
+app.get("/api/health", (req: Request, res: Response) => {
+  res.json({ ok: true, status: "Backend running" });
+});
 
-app.get("/api/debug/users", async (req, res) => {
+// Debug users
+app.get("/api/debug/users", async (req: Request, res: Response) => {
   try {
     const users = await User.find({}, { _id: 0, regNo: 1, name: 1 });
     res.json({ count: users.length, users });
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // --- Auth Route ---
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", async (req: Request, res: Response) => {
   const { regNo, password } = req.body;
-  if (!regNo || !password) return res.status(400).json({ error: "regNo and password required" });
+  if (!regNo || !password) {
+    return res.status(400).json({ error: "regNo and password required" });
+  }
 
   try {
     const user = await User.findOne({ regNo });
@@ -102,21 +119,19 @@ app.post("/api/auth/login", async (req, res) => {
         classes: user.classes,
       },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// --- Chat Routes ---
-app.get("/api/chats", authMiddleware, async (req, res) => {
+// --- Chats Route ---
+app.get("/api/chats", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const regNo = req.user.regNo;
+    const regNo = (req as any).user.regNo;
     const classes = await ClassModel.find({
       $or: [{ members: regNo }, { faculty: regNo }],
-    })
-      .select("-__v")
-      .lean();
+    }).select("-__v").lean();
 
     const chats = await Promise.all(
       classes.map(async (c) => {
@@ -137,16 +152,16 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
     );
 
     res.json({ chats });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error fetching chats:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// --- Message Routes ---
-app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
+// --- Messages Route ---
+app.get("/api/chats/:classId/messages", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { regNo } = req.user;
+    const regNo = (req as any).user.regNo;
     const { classId } = req.params;
 
     const cls = await ClassModel.findOne({ classId });
@@ -158,15 +173,15 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
 
     const messages = await Message.find({ classId }).sort({ createdAt: 1 }).lean();
     res.json({ messages });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error fetching messages:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
+app.post("/api/chats/:classId/messages", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { regNo } = req.user;
+    const regNo = (req as any).user.regNo;
     const { classId } = req.params;
     const { text } = req.body;
 
@@ -190,14 +205,14 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
 
     await message.save();
     res.json({ message });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error posting message:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // --- Root Route ---
-app.get("/", (req, res) => {
+app.get("/", (req: Request, res: Response) => {
   res.send("✅ LPU Sphere Backend is live and running!");
 });
 
