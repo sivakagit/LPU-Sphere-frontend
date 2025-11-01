@@ -4,7 +4,8 @@ import { Send, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import api from "@/api/axios";
-import socket from "@/socket"; // ✅ FIXED: remove `{}`
+import { socket } from "@/socket"; // ✅ named import
+
 
 interface Message {
   _id: string;
