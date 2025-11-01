@@ -10,17 +10,27 @@ const User = require("./models/User");
 const ClassModel = require("./models/Class");
 const Message = require("./models/Message");
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:8080",
-      "https://lpu-sphere-frontend-ecru.vercel.app",
-      "https://lpu-sphere-frontend-six.vercel.app" // ✅ your current frontend URL
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-  })
-);
+const allowedOrigins = [
+  "http://localhost:8080",
+  "http://localhost:5173",
+  "https://lpu-sphere-frontend-ecru.vercel.app",
+  "https://lpu-sphere-frontend-six.vercel.app"
+];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 
 app.use(express.json());
