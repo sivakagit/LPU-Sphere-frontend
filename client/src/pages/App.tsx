@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import Events from "@/components/app/Events";
 import ChatSearch from "@/pages/ChatSearch";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { socket } from "@/socket";
 
@@ -25,7 +25,16 @@ const AppMain = () => {
   useEffect(() => {
     // Get user from localStorage
     const userStr = localStorage.getItem("user");
-    if (userStr) {
+    const token = localStorage.getItem("token");
+    
+    // ✅ Check if user is authenticated
+    if (!userStr || !token) {
+      toast.error("Please login first");
+      navigate("/login");
+      return;
+    }
+
+    try {
       const userData = JSON.parse(userStr);
       setUser(userData);
       
@@ -34,13 +43,18 @@ const AppMain = () => {
         socket.emit("joinUserRoom", userData.regNo);
         console.log(`👤 Joined personal room: ${userData.regNo}`);
       }
+    } catch (err) {
+      console.error("Error parsing user data:", err);
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      navigate("/login");
     }
 
     // Check if we should open the chats tab
     if (location.state?.activeTab === "chats") {
       setActiveTab("chats");
     }
-  }, [location.state]);
+  }, [location.state, navigate]);
 
   // ✅ Listen for notifications globally
   useEffect(() => {
@@ -103,6 +117,15 @@ const AppMain = () => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  // ✅ Show loading while checking auth
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -146,6 +169,14 @@ const AppMain = () => {
                 >
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem 
+                  className="cursor-pointer"
+                  onClick={() => navigate("/settings")}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
                 </DropdownMenuItem>
                 
                 <DropdownMenuSeparator />

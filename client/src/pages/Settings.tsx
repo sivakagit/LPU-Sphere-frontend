@@ -5,6 +5,8 @@ import { ArrowLeft, ChevronRight, Star, Moon, Sun, Bell, BellOff } from "lucide-
 import { Input } from "@/components/ui/input";
 import { useTheme } from "next-themes";
 import React, { useState, ChangeEvent } from "react";
+import { socket } from "@/socket";
+import { toast } from "sonner";
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +16,28 @@ const Settings: React.FC = () => {
 
   const handleChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setMuteDays(Number(e.target.value));
+  };
+
+  // ✅ Fixed logout function
+  const handleLogout = () => {
+    // Clear localStorage
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    
+    // Clear all unread counts
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith("unread_")) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Disconnect socket
+    socket.disconnect();
+    
+    toast.success("Logged out successfully");
+    
+    // Navigate to login
+    navigate("/login");
   };
 
   return (
@@ -136,17 +160,18 @@ const Settings: React.FC = () => {
         <MenuItem icon="🎓" text="UMS" />
       </div>
       
-<div className="sticky bottom-4 flex justify-center">
-  <Button
-    variant="destructive"
-    size="sm"
-    onClick={() => navigate("/login")}
-    className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm shadow-md"
-  >
-    <LogOut className="w-4 h-4" />
-    Logout
-  </Button>
-</div>
+      {/* ✅ Fixed Logout Button */}
+      <div className="sticky bottom-4 flex justify-center mt-8">
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm shadow-md"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </Button>
+      </div>
 
     </div>
   );
@@ -176,7 +201,6 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, text, badge, to }) => {
       {badge && <span className="text-sm text-muted-foreground">{badge}</span>}
       <ChevronRight className="w-5 h-5 text-muted-foreground" />
     </button>
-    
   );
 };
 

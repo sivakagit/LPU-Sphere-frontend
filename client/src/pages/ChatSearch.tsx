@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, X, MessageCircle } from "lucide-react";
+import { X, MessageCircle, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import api from "@/api/axios";
 import { socket } from "@/socket";
 import { toast } from "sonner";
@@ -154,33 +155,29 @@ const ChatSearch = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-muted-foreground">Loading chats...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div 
-        className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
-        style={{ background: "var(--gradient-primary)" }}
-      >
-        <button onClick={() => navigate(-1)} className="text-primary-foreground">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <div className="flex-1">
+    <div className="w-full max-w-md mx-auto">
+      {/* Search Bar */}
+      <div className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search chats..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="rounded-full bg-card"
-            autoFocus
+            className="pl-10 rounded-full bg-muted/50"
           />
         </div>
       </div>
 
+      {/* Chat List */}
       <div className="divide-y">
         {filteredGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -199,7 +196,7 @@ const ChatSearch = () => {
               className="flex items-center gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
               onClick={() => handleChatClick(group.id)}
             >
-              <div className="w-12 h-12 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-semibold text-sm">
+              <div className="w-12 h-12 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-semibold text-sm flex-shrink-0">
                 {group.avatar}
               </div>
               <div className="flex-1 min-w-0">
@@ -210,10 +207,10 @@ const ChatSearch = () => {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-shrink-0">
                 {/* ✅ Unread Badge - only show if count > 0 */}
                 {group.unread > 0 && (
-                  <div className="w-6 h-6 rounded-sm bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                  <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
                     {group.unread > 99 ? "99+" : group.unread}
                   </div>
                 )}
@@ -222,7 +219,7 @@ const ChatSearch = () => {
                     e.stopPropagation(); // Prevent chat click
                     removeGroup(group.id);
                   }}
-                  className="p-1 hover:bg-muted rounded-full"
+                  className="p-1 hover:bg-muted rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
