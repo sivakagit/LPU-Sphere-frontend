@@ -23,28 +23,35 @@ const Login = () => {
 
     try {
       setLoading(true);
-
-      console.log("🔹 Attempting login with:", { regNo, password }); // Debug log
+      console.log("🔹 Attempting login with:", { regNo, password });
 
       const { data } = await api.post("/auth/login", { regNo, password });
+      console.log("✅ Login response:", data);
 
-      console.log("✅ Login response:", data); // Debug log
+      // 🧩 Safety check — make sure data and user exist
+      if (!data || !data.user) {
+        toast.error(data?.message || "Invalid response from server");
+        console.error("⚠️ Unexpected response structure:", data);
+        return;
+      }
 
-      // Save JWT token in localStorage
+      // Save JWT token & user details
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      toast.success(`Welcome, ${data.user.name}!`);
+      // Safe welcome message
+      const userName = data.user.name || "User";
+      toast.success(`Welcome, ${userName}!`);
 
-
-        navigate("/app");
-
+      navigate("/app");
     } catch (err: any) {
       console.error("❌ Login error:", err);
       console.error("❌ Error response:", err.response?.data);
-      
-      // Check for both 'error' and 'message' fields from backend
-      const errorMessage = err.response?.data?.error || err.response?.data?.message || "Invalid credentials";
+
+      const errorMessage =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Invalid credentials";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -52,17 +59,17 @@ const Login = () => {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen flex flex-col items-center justify-center px-6"
       style={{ background: "var(--gradient-primary)" }}
     >
       <div className="w-full max-w-md flex flex-col items-center gap-8 animate-fade-in">
-        <img 
-          src={lpuLogo} 
-          alt="Lovely Professional University" 
+        <img
+          src={lpuLogo}
+          alt="Lovely Professional University"
           className="w-48 h-auto mb-4"
         />
-        
+
         <form onSubmit={handleLogin} className="w-full space-y-4">
           <div className="relative">
             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
@@ -74,7 +81,7 @@ const Login = () => {
               className="px-12 h-14 rounded-full text-center bg-input shadow-md"
             />
           </div>
-          
+
           <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
             <Input
@@ -85,8 +92,8 @@ const Login = () => {
               className="px-12 h-14 rounded-full text-center bg-input shadow-md"
             />
           </div>
-          
-          <Button 
+
+          <Button
             type="submit"
             variant="auth"
             className="w-40 h-12 rounded-full mx-auto block mt-6"
