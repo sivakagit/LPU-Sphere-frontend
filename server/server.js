@@ -10,18 +10,15 @@ const User = require("./models/User");
 const ClassModel = require("./models/Class");
 const Message = require("./models/Message");
 
-const allowedOrigins = [
-  "http://localhost:8080",
-  "http://localhost:5173",
-  "https://lpu-sphere-backend.vercel.app",
-  "https://lpu-sphere-frontend-six.vercel.app"
-];
+// --- Express app ---
+const app = express();
 
+// ✅ --- CORS setup ---
 const allowedOrigins = [
   "http://localhost:8080",
   "http://localhost:5173",
+  "https://lpu-sphere-frontend-six.vercel.app",
   "https://lpu-sphere-frontend-ecru.vercel.app",
-  "https://lpu-sphere-frontend-six.vercel.app"
 ];
 
 app.use((req, res, next) => {
@@ -39,22 +36,24 @@ app.use((req, res, next) => {
   next();
 });
 
-
 app.use(express.json());
-
 
 // --- Config ---
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "secret";
 
 // --- MongoDB Connection ---
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ Mongo connected");
-    console.log("Connected DB:", mongoose.connection?.name || "unknown");
-  })
-  .catch((err) => console.error("❌ Mongo connection error:", err));
-
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log("✅ Mongo connected:", mongoose.connection.name);
+  } catch (err) {
+    console.error("❌ Mongo connection error:", err.message);
+  }
+};
+connectDB();
 
 // --- Auth Middleware ---
 const authMiddleware = async (req, res, next) => {
@@ -66,15 +65,16 @@ const authMiddleware = async (req, res, next) => {
     const payload = jwt.verify(token, JWT_SECRET);
     req.user = payload;
     next();
-  } catch (e) {
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 };
 
 // --- Routes ---
+app.get("/api/health", (req, res) =>
+  res.json({ ok: true, status: "Backend running" })
+);
 
-// Health check route
-app.get("/api/health", (req, res) => res.json({ ok: true, status: "Backend running" }));
 app.get("/api/debug/users", async (req, res) => {
   try {
     const users = await User.find({}, { _id: 0, regNo: 1, name: 1 });
@@ -84,7 +84,7 @@ app.get("/api/debug/users", async (req, res) => {
   }
 });
 
-// --- Auth Routes ---
+// --- Auth Route ---
 app.post("/api/auth/login", async (req, res) => {
   const { regNo, password } = req.body;
 
@@ -114,7 +114,6 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Login error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -125,9 +124,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
     const regNo = req.user.regNo;
     const classes = await ClassModel.find({
       $or: [{ members: regNo }, { faculty: regNo }],
-    })
-      .select("-__v")
-      .lean();
+    }).select("-__v");
 
     const chats = await Promise.all(
       classes.map(async (c) => {
@@ -149,7 +146,6 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
 
     res.json({ chats });
   } catch (err) {
-    console.error("Error fetching chats:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -167,10 +163,9 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const messages = await Message.find({ classId }).sort({ createdAt: 1 }).lean();
+    const messages = await Message.find({ classId }).sort({ createdAt: 1 });
     res.json({ messages });
   } catch (err) {
-    console.error("Error fetching messages:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -202,7 +197,6 @@ app.post("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
     await message.save();
     res.json({ message });
   } catch (err) {
-    console.error("Error posting message:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
