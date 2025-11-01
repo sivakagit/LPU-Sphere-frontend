@@ -15,14 +15,15 @@ const seedData = async () => {
     });
     console.log('✅ Connected to MongoDB');
 
-    // Clear existing data (optional - comment out if you want to keep existing data)
+    // Optional: clear old data
     await User.deleteMany({});
     await ClassModel.deleteMany({});
     await Message.deleteMany({});
     console.log('🗑️  Cleared existing data');
 
-    // Create Users
+    // 👩‍🎓👨‍🎓 Create Users
     const users = [
+      // --- Original ---
       {
         regNo: '12214001',
         name: 'Aarav Sharma',
@@ -72,12 +73,56 @@ const seedData = async () => {
         role: 'faculty',
         classes: ['CSE3C'],
       },
+
+      // --- ✅ New Students (CSE3C full group) ---
+      {
+        regNo: "12211639",
+        name: "Arjun Mehta",
+        password: "student123",
+        role: "student",
+        classes: ["CSE3C"]
+      },
+      {
+        regNo: "12211633",
+        name: "Ravi Sharma",
+        password: "student123",
+        role: "student",
+        classes: ["CSE3C"]
+      },
+      {
+        regNo: "12211634",
+        name: "Vikram Nair",
+        password: "student123",
+        role: "student",
+        classes: ["CSE3C"]
+      },
+      {
+        regNo: "12211635",
+        name: "Aditya Singh",
+        password: "student123",
+        role: "student",
+        classes: ["CSE3C"]
+      },
+      {
+        regNo: "12211636",
+        name: "Sneha Kapoor",
+        password: "student123",
+        role: "student",
+        classes: ["CSE3C"]
+      },
+      {
+        regNo: "12211637",
+        name: "Priya Iyer",
+        password: "student123",
+        role: "student",
+        classes: ["CSE3C"]
+      }
     ];
 
     await User.insertMany(users);
     console.log('👥 Created users');
 
-    // Create Classes
+    // 👨‍🏫 Create Classes
     const classes = [
       {
         classId: 'CSE3A',
@@ -95,90 +140,56 @@ const seedData = async () => {
       },
       {
         classId: 'CSE3C',
-        className: 'Database Management Systems',
+        className: 'CSE Year 3 Section C',
         code: 'K22SR-INT-382',
         faculty: 'F102',
-        members: ['12214007'],
+        members: [
+          "12211639",
+          "12211633",
+          "12211634",
+          "12211635",
+          "12211636",
+          "12211637",
+          "F102"
+        ],
       },
     ];
 
     await ClassModel.insertMany(classes);
     console.log('📚 Created classes');
 
-    // Create Messages
+    // 💬 Sample Messages for Group Chat
     const messages = [
-      {
-        classId: 'CSE3A',
-        senderRegNo: '12214001',
-        senderName: 'Aarav Sharma',
-        text: 'Hey everyone! Assignment deadline is tomorrow.',
-        createdAt: new Date('2025-10-30T09:30:00Z'),
-      },
-      {
-        classId: 'CSE3A',
-        senderRegNo: '12214002',
-        senderName: 'Isha Patel',
-        text: 'Thanks for the reminder! Does anyone have the lecture notes?',
-        createdAt: new Date('2025-10-30T09:45:00Z'),
-      },
-      {
-        classId: 'CSE3A',
-        senderRegNo: 'F101',
-        senderName: 'Dr. Rajesh Kumar',
-        text: 'Notes are uploaded on the portal. Good luck with your assignment!',
-        createdAt: new Date('2025-10-30T10:15:00Z'),
-      },
-      {
-        classId: 'CSE3A',
-        senderRegNo: '12214007',
-        senderName: 'Rohan Gupta',
-        text: 'Can we have a study group session this evening?',
-        createdAt: new Date('2025-10-30T14:20:00Z'),
-      },
-      {
-        classId: 'CSE3A',
-        senderRegNo: '12214014',
-        senderName: 'Priya Singh',
-        text: 'Sure! Library at 6 PM?',
-        createdAt: new Date('2025-10-30T14:25:00Z'),
-      },
-      {
-        classId: 'CSE3B',
-        senderRegNo: 'F101',
-        senderName: 'Dr. Rajesh Kumar',
-        text: 'Lab session will be held tomorrow at 3 PM in Lab 204.',
-        createdAt: new Date('2025-10-29T11:00:00Z'),
-      },
-      {
-        classId: 'CSE3B',
-        senderRegNo: '12214001',
-        senderName: 'Aarav Sharma',
-        text: 'Got it, sir. Thank you!',
-        createdAt: new Date('2025-10-29T11:05:00Z'),
-      },
       {
         classId: 'CSE3C',
         senderRegNo: 'F102',
         senderName: 'Prof. Sneha Agarwal',
-        text: 'Project presentations will be next week. Please prepare accordingly.',
-        createdAt: new Date('2025-10-28T10:00:00Z'),
+        text: 'Welcome to CSE3C group! This is your main chat for discussions.',
+        createdAt: new Date('2025-10-31T10:00:00Z'),
       },
       {
         classId: 'CSE3C',
-        senderRegNo: '12214007',
-        senderName: 'Rohan Gupta',
-        text: 'Yes ma\'am, we are working on it.',
-        createdAt: new Date('2025-10-28T10:30:00Z'),
+        senderRegNo: '12211633',
+        senderName: 'Ravi Sharma',
+        text: 'Thank you, ma’am! Looking forward to working together.',
+        createdAt: new Date('2025-10-31T10:05:00Z'),
       },
+      {
+        classId: 'CSE3C',
+        senderRegNo: '12211636',
+        senderName: 'Sneha Kapoor',
+        text: 'Hi everyone 👋',
+        createdAt: new Date('2025-10-31T10:06:00Z'),
+      }
     ];
 
     await Message.insertMany(messages);
-    console.log('💬 Created messages');
+    console.log('💬 Created sample messages');
 
     console.log('\n✅ Database seeded successfully!');
-    console.log('\n📝 Test credentials:');
-    console.log('Student: regNo: 12214001, password: password123');
-    console.log('Faculty: regNo: F101, password: faculty123');
+    console.log('\n📝 Test logins:');
+    console.log('Faculty (CSE3C): F102 / faculty123');
+    console.log('Student (CSE3C): 12211633 / student123');
 
     process.exit(0);
   } catch (err) {

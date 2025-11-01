@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Search, Calendar, MessageCircle, Settings } from "lucide-react";
 import ChatItem from "./ChatItem";
-import api from "@/api/axios"; // ✅ using axios instance (auto includes baseURL + token)
+import api from "@/api/axios"; // ✅ axios instance (includes baseURL + token)
 
 interface Chat {
   id: string;
@@ -26,11 +26,11 @@ const Chats = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userRegNo = user?.regNo;
 
-  // ✅ Fetch chats using central API instance
+  // ✅ Fetch chats + auto-refresh every 5 seconds
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const res = await api.get("/chats"); // ✅ backend route
+        const res = await api.get("/api/chats"); // ✅ correct backend route
         console.log("✅ Chats API response:", res.data);
         setClasses(res.data.chats || []);
       } catch (error: any) {
@@ -40,17 +40,20 @@ const Chats = () => {
         setLoading(false);
       }
     };
-    fetchChats();
+
+    fetchChats(); // fetch immediately
+    const interval = setInterval(fetchChats, 5000); // ⏳ refresh every 5 s
+    return () => clearInterval(interval);
   }, []);
 
-  // ✅ Header scroll animation
+  // ✅ Scroll animation for header
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ✅ Filtered chats
+  // ✅ Filter chat list
   const filteredChats = Array.isArray(classes)
     ? classes.filter(
         (chat) =>
