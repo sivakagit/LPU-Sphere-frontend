@@ -24,7 +24,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const allowedOrigins = [
   "http://localhost:5173",
   "https://lpu-sphere-frontend-rbpx.onrender.com",
-  "https://lpu-sphere-frontend-ten.vercel.app",
 ];
 
 // --- Middleware ---
