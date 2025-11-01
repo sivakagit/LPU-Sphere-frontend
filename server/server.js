@@ -40,15 +40,21 @@ app.use((req, res, next) => {
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, "0.0.0.0", () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
+
+
 // --- MongoDB Connection ---
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB connected:", mongoose.connection.name);
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
-  });
+// mongoose
+//   .connect(process.env.MONGO_URI)
+//   .then(() => {
+//     console.log("✅ MongoDB connected:", mongoose.connection.name);
+//   })
+//   .catch((err) => {
+//     console.error("❌ MongoDB connection error:", err.message);
+//   });
 
 // --- Auth Middleware ---
 const authMiddleware = (req, res, next) => {
