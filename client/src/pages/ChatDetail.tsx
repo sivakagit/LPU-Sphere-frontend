@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Send, ArrowLeft, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ interface Message {
 const ChatDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [message, setMessage] = useState("");
@@ -33,27 +32,36 @@ const ChatDetail = () => {
   const scrollToBottom = () =>
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
-  // Fetch messages on load
+  // ✅ Fetch messages once when chat loads
   useEffect(() => {
     const fetchMessages = async () => {
-      const res = await api.get(`/chats/${id}/messages`);
-      setMessages(res.data.messages || []);
-      setLoading(false);
+      try {
+        const res = await api.get(`/chats/${id}/messages`);
+        setMessages(res.data.messages || []);
+      } catch (error) {
+        console.error("Error loading messages:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchMessages();
   }, [id]);
 
-  // Scroll to bottom whenever messages update
-  useEffect(() => scrollToBottom(), [messages]);
+  // ✅ Auto-scroll when new messages come in
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-  // Socket.IO setup
+  // ✅ Socket setup for real-time messaging
   useEffect(() => {
     if (!id) return;
 
     socket.emit("joinRoom", id);
 
     socket.on("newMessage", (msg: Message) => {
-      if (msg.classId === id) setMessages((prev) => [...prev, msg]);
+      if (msg.classId === id) {
+        setMessages((prev) => [...prev, msg]);
+      }
     });
 
     return () => {
@@ -61,21 +69,25 @@ const ChatDetail = () => {
     };
   }, [id]);
 
+  // ✅ Send a message
   const handleSend = async () => {
     if (!message.trim() || sending) return;
     setSending(true);
-    const text = message.trim();
 
     try {
-      const response = await api.post(`/chats/${id}/messages`, { text });
-      setMessages((prev) => [...prev, response.data.message]);
-      socket.emit("sendMessage", {
-        classId: id,
-        regNo: userRegNo,
-        name: userName,
-        text,
-      });
+      // Send message to backend (stores in MongoDB)
+      const res = await api.post(`/chats/${id}/messages`, { text: message });
+      const newMsg = res.data.message;
+
+      // Immediately show in chat (optimistic UI)
+      setMessages((prev) => [...prev, newMsg]);
+
+      // Notify other clients
+      socket.emit("sendMessage", newMsg);
+
       setMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
     } finally {
       setSending(false);
     }
