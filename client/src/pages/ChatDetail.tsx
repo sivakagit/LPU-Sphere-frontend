@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ArrowLeft, MoreVertical, Send, Image, FileText, BarChart3, Printer, LogOut, Bell, Search, Archive } from "lucide-react";
+import {
+  ArrowLeft,
+  MoreVertical,
+  Send,
+  Image,
+  FileText,
+  BarChart3,
+  Printer,
+  LogOut,
+  Bell,
+  Search,
+  Archive,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import axios from "axios";
+import api from "@/api/axios"; // ✅ using the new API file
 
 interface Message {
   _id: string;
@@ -33,7 +45,7 @@ const ChatDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   const fromTab = (location.state as any)?.from || "chats";
   const [message, setMessage] = useState("");
   const [showAttachments, setShowAttachments] = useState(false);
@@ -48,7 +60,6 @@ const ChatDetail = () => {
   const userRegNo = user?.regNo || "";
   const userName = user?.name || "You";
 
-  // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -60,26 +71,16 @@ const ChatDetail = () => {
 
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
 
-        // Fetch chat info
-        const chatRes = await axios.get(`http://localhost:4000/api/chats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
+        // ✅ Fetch all chats
+        const chatRes = await api.get("/chats");
         const currentChat = chatRes.data.chats?.find((chat: any) => chat.id === id);
         if (currentChat) {
           setChatInfo(currentChat);
         }
 
-        // Fetch messages
-        const messagesRes = await axios.get(
-          `http://localhost:4000/api/chats/${id}/messages`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        
+        // ✅ Fetch messages for this chat
+        const messagesRes = await api.get(`/chats/${id}/messages`);
         setMessages(messagesRes.data.messages || []);
         setError("");
       } catch (err: any) {
@@ -93,32 +94,23 @@ const ChatDetail = () => {
     fetchChatData();
   }, [id]);
 
-  // Auto-scroll when messages change
+  // Auto-scroll to bottom
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Send message
+  // Send a message
   const handleSend = async () => {
     if (!message.trim() || sending) return;
 
     try {
       setSending(true);
-      const token = localStorage.getItem("token");
+      const response = await api.post(`/chats/${id}/messages`, {
+        text: message.trim(),
+        senderRegNo: userRegNo,
+        senderName: userName,
+      });
 
-      const response = await axios.post(
-        `http://localhost:4000/api/chats/${id}/messages`,
-        {
-          text: message.trim(),
-          senderRegNo: userRegNo,
-          senderName: userName,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      // Add the new message to the list
       if (response.data.message) {
         setMessages((prev) => [...prev, response.data.message]);
       }
@@ -132,7 +124,6 @@ const ChatDetail = () => {
     }
   };
 
-  // Format time
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString("en-US", {
@@ -141,7 +132,6 @@ const ChatDetail = () => {
     });
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -153,7 +143,6 @@ const ChatDetail = () => {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -182,9 +171,9 @@ const ChatDetail = () => {
           className="flex-1 cursor-pointer flex items-center gap-2"
           onClick={() => navigate(`/group-info/${id}`)}
         >
-        <div className="w-12 h-12 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-semibold text-sm flex-shrink-0">
-        {chatInfo?.avatar}
-      </div>
+          <div className="w-12 h-12 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-semibold text-sm flex-shrink-0">
+            {chatInfo?.avatar}
+          </div>
           <h1 className="text-base font-semibold text-primary-foreground">
             {chatInfo?.name || id}
           </h1>
@@ -217,7 +206,7 @@ const ChatDetail = () => {
         </DropdownMenu>
       </div>
 
-      {/* Messages Area */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto pb-4">
         <div className="flex justify-center my-3">
           <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-xs font-semibold">
@@ -225,7 +214,6 @@ const ChatDetail = () => {
           </span>
         </div>
 
-        {/* Messages */}
         {messages.length === 0 ? (
           <div className="text-center text-muted-foreground mt-10">
             <p className="text-lg font-semibold mb-2">No messages yet</p>
@@ -248,9 +236,7 @@ const ChatDetail = () => {
                 )}
                 <div
                   className={`p-3 rounded-lg shadow-sm max-w-[80%] ${
-                    isSent
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card"
+                    isSent ? "bg-primary text-primary-foreground" : "bg-card"
                   }`}
                 >
                   {!isSent && (
@@ -279,7 +265,7 @@ const ChatDetail = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
+      {/* Input */}
       <div className="sticky bottom-0 bg-secondary border-t p-3">
         {showAttachments && (
           <div className="flex items-center gap-2 mb-3">
