@@ -4,8 +4,7 @@ import { Send, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import api from "@/api/axios";
-import { socket } from "@/socket"; // ✅ named import
-
+import { socket } from "@/socket";
 
 interface Message {
   _id: string;
@@ -24,11 +23,19 @@ const ChatDetail = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [className, setClassName] = useState("");
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const token = localStorage.getItem("token");
   const userRegNo = user?.regNo;
   const userName = user?.name || "You";
+
+  // ✅ Clear unread count when entering chat
+  useEffect(() => {
+    if (id) {
+      localStorage.removeItem(`unread_${id}`);
+    }
+  }, [id]);
 
   // ✅ Fetch messages (authorized)
   useEffect(() => {
@@ -56,6 +63,8 @@ const ChatDetail = () => {
     const handleNewMessage = (msg: Message) => {
       if (msg.classId === id) {
         setMessages((prev) => [...prev, msg]);
+        // Clear unread count since we're viewing the chat
+        localStorage.removeItem(`unread_${id}`);
       }
     };
 
@@ -96,8 +105,13 @@ const ChatDetail = () => {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <div className="flex items-center p-4 shadow bg-primary text-white">
-        <ArrowLeft className="mr-3 cursor-pointer" onClick={() => navigate("/app")} />
-        <h1 className="text-lg font-semibold flex-1">Group Chat ({id})</h1>
+        <ArrowLeft 
+          className="mr-3 cursor-pointer" 
+          onClick={() => navigate("/app", { state: { activeTab: "chats" } })} 
+        />
+        <h1 className="text-lg font-semibold flex-1">
+          Group Chat {className && `- ${className}`}
+        </h1>
       </div>
 
       {/* Messages */}
@@ -117,7 +131,13 @@ const ChatDetail = () => {
                 {!isMe && (
                   <div className="text-xs font-bold mb-1">{msg.senderName}</div>
                 )}
-                {msg.text}
+                <div className="break-words">{msg.text}</div>
+                <div className={`text-xs mt-1 ${isMe ? "text-white/70" : "text-gray-500"}`}>
+                  {new Date(msg.createdAt).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
               </div>
             </div>
           );
@@ -132,8 +152,13 @@ const ChatDetail = () => {
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          className="flex-1"
         />
-        <Button onClick={handleSend}>
+        <Button 
+          onClick={handleSend}
+          disabled={!message.trim()}
+          size="icon"
+        >
           <Send size={18} />
         </Button>
       </div>

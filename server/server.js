@@ -146,6 +146,12 @@ app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
+  // ✅ NEW: Allow users to join their personal room for notifications
+  socket.on("joinUserRoom", (regNo) => {
+    socket.join(regNo);
+    console.log(`👤 User ${regNo} joined personal room`);
+  });
+
   socket.on("joinRoom", (classId) => {
     socket.join(classId);
     console.log(`👥 Joined room: ${classId}`);
@@ -165,7 +171,29 @@ io.on("connection", (socket) => {
       });
 
       await message.save();
+      
+      // Emit to all users in the room
       io.to(classId).emit("newMessage", message);
+
+      // ✅ NEW: Send notifications to all class members (except sender)
+      const cls = await ClassModel.findOne({ classId }).lean();
+      if (cls) {
+        const recipients = [...cls.members, cls.faculty].filter(
+          (r) => r && r !== regNo
+        );
+
+        recipients.forEach((r) => {
+          io.to(r).emit("notification", {
+            type: "message",
+            classId: classId,
+            className: cls.className,
+            title: `New message in ${cls.className}`,
+            message: `${name}: ${text}`,
+            senderName: name,
+            link: `/chat/${classId}`,
+          });
+        });
+      }
     } catch (err) {
       console.error("🔥 sendMessage error:", err.message);
     }

@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import Events from "@/components/app/Events";
-import Chats from "@/components/app/Chats";
+import ChatSearch from "@/pages/ChatSearch";
 import { useLocation, useNavigate } from "react-router-dom";
 import { LogOut, User } from "lucide-react";
 import { toast } from "sonner";
+import { socket } from "@/socket";
 
 const AppMain = () => {
   const location = useLocation();
@@ -25,7 +26,14 @@ const AppMain = () => {
     // Get user from localStorage
     const userStr = localStorage.getItem("user");
     if (userStr) {
-      setUser(JSON.parse(userStr));
+      const userData = JSON.parse(userStr);
+      setUser(userData);
+      
+      // ✅ Join user's personal room for notifications
+      if (userData.regNo) {
+        socket.emit("joinUserRoom", userData.regNo);
+        console.log(`👤 Joined personal room: ${userData.regNo}`);
+      }
     }
 
     // Check if we should open the chats tab
@@ -34,10 +42,51 @@ const AppMain = () => {
     }
   }, [location.state]);
 
+  // ✅ Listen for notifications globally
+  useEffect(() => {
+    const handleNotification = (notif: any) => {
+      if (notif.type === "message") {
+        // Only show toast if not currently in the chat
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes(`/chat/${notif.classId}`)) {
+          toast.info(`${notif.senderName} in ${notif.className}`, {
+            description: notif.message,
+            action: {
+              label: "View",
+              onClick: () => {
+                setActiveTab("chats");
+                setTimeout(() => {
+                  navigate(`/chat/${notif.classId}`);
+                }, 100);
+              },
+            },
+            duration: 5000,
+          });
+        }
+      }
+    };
+
+    socket.on("notification", handleNotification);
+
+    return () => {
+      socket.off("notification", handleNotification);
+    };
+  }, [navigate]);
+
   const handleLogout = () => {
     // Clear localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    
+    // Clear all unread counts
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith("unread_")) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Disconnect socket
+    socket.disconnect();
     
     toast.success("Logged out successfully");
     
@@ -52,22 +101,6 @@ const AppMain = () => {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
-  };
-
-  const getAvatarColor = (name: string) => {
-    if (!name) return "bg-indigo-600";
-    const colors = [
-      "bg-indigo-600",
-      "bg-emerald-600",
-      "bg-violet-600",
-      "bg-rose-600",
-      "bg-amber-600",
-      "bg-cyan-600",
-      "bg-fuchsia-600",
-      "bg-lime-600",
-    ];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
   };
 
   return (
@@ -107,7 +140,10 @@ const AppMain = () => {
                 
                 <DropdownMenuSeparator />
                 
-                <DropdownMenuItem className="cursor-pointer">
+                <DropdownMenuItem 
+                  className="cursor-pointer"
+                  onClick={() => navigate("/profile")}
+                >
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
@@ -146,7 +182,7 @@ const AppMain = () => {
         </TabsContent>
 
         <TabsContent value="chats" className="mt-0">
-          <Chats />
+          <ChatSearch />
         </TabsContent>
       </Tabs>
     </div>
