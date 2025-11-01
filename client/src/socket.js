@@ -1,6 +1,6 @@
 // socket/socket.js
-const Message = require("../../../server/models/Message");
-const ClassModel = require("../../../server/models/Class");
+const Message = require("../../server/models/Message");
+const ClassModel = require("../../server/models/Class");
 
 function initializeSocket(io) {
   io.on("connection", (socket) => {
