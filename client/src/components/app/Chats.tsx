@@ -30,7 +30,7 @@ const Chats = () => {
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const res = await api.get("/api/chats"); // ✅ correct backend route
+        const res = await api.get("/chats"); // ✅ correct backend route
         console.log("✅ Chats API response:", res.data);
         setClasses(res.data.chats || []);
       } catch (error: any) {
