@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,27 +13,34 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-
-const members = [
-  { id: "1", name: "You", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" },
-  { id: "2", name: "Bashi", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" },
-  { id: "3", name: "Dharani", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" },
-  { id: "4", name: "Nahulya", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop" },
-  { id: "5", name: "Ram", avatar: "https://images.unsplash.com/photo-1463453091185-61582044d556?w=100&h=100&fit=crop" },
-  { id: "6", name: "Saran", avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop" },
-  { id: "7", name: "Megha", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop" },
-];
+import api from "@/api/axios"; // ✅ Make sure this points to your axios instance
 
 const GroupInfo = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id: classId } = useParams(); // e.g., CSE3A
   const [showSaveOptions, setShowSaveOptions] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // ✅ Fetch members from backend
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const res = await api.get(`/api/classes/${classId}/members`);
+        setMembers(res.data);
+      } catch (err) {
+        console.error("Error fetching class members:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMembers();
+  }, [classId]);
 
   return (
     <div className="min-h-screen bg-background">
-     
+      {/* Top Header */}
       <div
         className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
         style={{ background: "var(--gradient-primary)" }}
@@ -41,18 +49,20 @@ const GroupInfo = () => {
           <ArrowLeft className="w-6 h-6" />
         </button>
         <h1 className="text-lg font-semibold text-primary-foreground flex-1 text-center truncate">
-          K22GE PES 122
+          {classId}
         </h1>
         <div className="w-6" />
       </div>
 
-      
+      {/* Group Info */}
       <div className="p-6 text-center border-b">
         <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-[#8B4513] text-white flex items-center justify-center text-2xl font-bold">
-          K22<br />GE
+          {classId?.slice(0, 4) || "CL"}
         </div>
-        <h2 className="text-2xl font-bold mb-1">K22GE PES - 122</h2>
-        <p className="text-sm text-muted-foreground">Group ~ 69 members</p>
+        <h2 className="text-2xl font-bold mb-1">{classId}</h2>
+        <p className="text-sm text-muted-foreground">
+          Group • {members.length} members
+        </p>
 
         <div className="flex flex-wrap justify-center gap-6 mt-6">
           <IconButton icon={ImageIcon} label="Images" />
@@ -66,44 +76,58 @@ const GroupInfo = () => {
         </Button>
       </div>
 
-     
+      {/* Options */}
       <div className="divide-y">
         <MenuItem icon={Bell} text="Notification" />
         <MenuItem icon={Palette} text="Chat Theme" />
         <MenuItem
           icon={Download}
           text="Save to Photos"
-          badge="default"
           onClick={() => setShowSaveOptions(true)}
         />
         <MenuItem icon={Trash2} text="Clear Chat" />
       </div>
 
-      
+      {/* Members List */}
       <div className="p-4 border-t">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">136 members</h3>
+          <h3 className="font-semibold">
+            {loading ? "Loading..." : `${members.length} members`}
+          </h3>
           <Search className="w-5 h-5 text-muted-foreground" />
         </div>
+
         <div className="divide-y">
+          {!loading && members.length === 0 && (
+            <p className="text-center text-muted-foreground py-4">
+              No members found.
+            </p>
+          )}
+
           {members.map((member) => (
             <button
-              key={member.id}
+              key={member.regNo}
               className="w-full flex items-center gap-3 py-3 hover:bg-muted/50 transition"
             >
               <img
-                src={member.avatar}
+                src={
+                  member.avatar ||
+                  "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+                }
                 alt={member.name}
                 className="w-10 h-10 rounded-full object-cover"
               />
-              <span className="flex-1 text-left truncate">{member.name}</span>
+              <div className="flex-1 text-left">
+                <p className="font-medium">{member.name}</p>
+                <p className="text-xs text-muted-foreground">{member.regNo}</p>
+              </div>
               <ChevronRight className="w-5 h-5 text-muted-foreground" />
             </button>
           ))}
         </div>
       </div>
 
-    
+      {/* Save Options Modal */}
       {showSaveOptions && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center animate-fadeIn">
           <div className="bg-card w-full max-w-md rounded-t-2xl p-6 shadow-lg">
@@ -155,39 +179,19 @@ const GroupInfo = () => {
   );
 };
 
-
-const MenuItem = ({
-  icon: Icon,
-  text,
-  badge,
-  onClick,
-}: {
-  icon: any;
-  text: string;
-  badge?: string;
-  onClick?: () => void;
-}) => (
+// Reusable Components
+const MenuItem = ({ icon: Icon, text, onClick }) => (
   <button
     onClick={onClick}
     className="w-full flex items-center gap-3 p-4 hover:bg-muted/50 transition-all"
   >
     <Icon className="w-5 h-5 flex-shrink-0" />
     <span className="flex-1 text-left truncate">{text}</span>
-    {badge && <span className="text-xs text-muted-foreground">{badge}</span>}
     <ChevronRight className="w-5 h-5 text-muted-foreground hidden sm:block" />
   </button>
 );
 
-
-const OptionButton = ({
-  label,
-  description,
-  onClick,
-}: {
-  label: string;
-  description: string;
-  onClick: () => void;
-}) => (
+const OptionButton = ({ label, description, onClick }) => (
   <button
     onClick={onClick}
     className="w-full text-left p-3 rounded-xl bg-muted/40 hover:bg-muted transition-all"
@@ -197,8 +201,7 @@ const OptionButton = ({
   </button>
 );
 
-
-const IconButton = ({ icon: Icon, label }: { icon: any; label: string }) => (
+const IconButton = ({ icon: Icon, label }) => (
   <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition">
     <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
     <span className="text-xs sm:text-sm">{label}</span>
