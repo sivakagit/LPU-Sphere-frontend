@@ -119,7 +119,8 @@ const ChatDetail = () => {
         />
         <div 
           className="flex-1 cursor-pointer"
-          onClick={() => navigate(`/group/${id}`)}
+          onClick={() => navigate(`/api/chats/${id}`)}
+
         >
           <h1 className="text-lg font-semibold">
             {className}
