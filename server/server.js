@@ -339,12 +339,12 @@ io.on("connection", (socket) => {
     console.log("🔴 Disconnected:", socket.id);
   });
 });
-// // ✅ Redirect legacy frontend route /group/:classId to your API route
-// app.get("/group/:classId", (req, res) => {
-//   const { classId } = req.params;
-//   // Redirect to the proper backend API
-//   res.redirect(`/api/chats/${classId}`);
-// });
+// ✅ Redirect legacy frontend route /group/:classId to your API route
+app.get("/group/:classId", (req, res) => {
+  const { classId } = req.params;
+  // Redirect to the proper backend API
+  res.redirect(`/api/chats/${classId}`);
+});
 
 server.listen(PORT, "0.0.0.0", () =>
   console.log(`🚀 Server running on port ${PORT}`)
