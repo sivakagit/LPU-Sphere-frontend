@@ -69,7 +69,7 @@ const App = () => (
               }
             />
             <Route
-              path="/group-info/:id"
+              path="/group/:id"
               element={
                 <ProtectedRoute>
                   <GroupInfo />
