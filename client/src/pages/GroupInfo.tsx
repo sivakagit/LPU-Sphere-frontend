@@ -12,47 +12,113 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import api from "@/api/axios";
+import { toast } from "sonner";
 
-const members = [
-  { id: "1", name: "You", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" },
-  { id: "2", name: "Bashi", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" },
-  { id: "3", name: "Dharani", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" },
-  { id: "4", name: "Nahulya", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop" },
-  { id: "5", name: "Ram", avatar: "https://images.unsplash.com/photo-1463453091185-61582044d556?w=100&h=100&fit=crop" },
-  { id: "6", name: "Saran", avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop" },
-  { id: "7", name: "Megha", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop" },
-];
+interface Member {
+  regNo: string;
+  name: string;
+  seed: string;
+}
+
+interface ClassDetails {
+  classId: string;
+  className: string;
+  code?: string;
+  faculty: string;
+  memberCount: number;
+  members: Member[];
+}
 
 const GroupInfo = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [showSaveOptions, setShowSaveOptions] = useState(false);
+  const [classDetails, setClassDetails] = useState<ClassDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // ✅ Fetch group info from backend
+  useEffect(() => {
+    const fetchGroupInfo = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await api.get(`/api/chats/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        console.log("✅ Group info fetched:", res.data);
+        setClassDetails(res.data.class);
+      } catch (err) {
+        console.error("❌ Error fetching group info:", err);
+        toast.error("Failed to load group info");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchGroupInfo();
+    }
+  }, [id]);
+
+  // Filter members based on search
+  const filteredMembers = classDetails?.members.filter(member =>
+    member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    member.regNo.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-muted-foreground">Loading group info...</div>
+      </div>
+    );
+  }
+
+  if (!classDetails) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">Group not found</p>
+          <Button onClick={() => navigate(-1)}>Go Back</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
-     
+      {/* Header */}
       <div
         className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
         style={{ background: "var(--gradient-primary)" }}
       >
-        <button onClick={() => navigate(-1)} className="text-primary-foreground">
+        <button 
+          onClick={() => navigate(`/chat/${id}`)} 
+          className="text-primary-foreground"
+        >
           <ArrowLeft className="w-6 h-6" />
         </button>
         <h1 className="text-lg font-semibold text-primary-foreground flex-1 text-center truncate">
-          K22GE PES 122
+          Group Info
         </h1>
         <div className="w-6" />
       </div>
 
-      
+      {/* Group Header */}
       <div className="p-6 text-center border-b">
-        <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-[#8B4513] text-white flex items-center justify-center text-2xl font-bold">
-          K22<br />GE
+        <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-accent text-accent-foreground flex items-center justify-center text-3xl font-bold">
+          {classDetails.classId.substring(0, 2).toUpperCase()}
         </div>
-        <h2 className="text-2xl font-bold mb-1">K22GE PES - 122</h2>
-        <p className="text-sm text-muted-foreground">Group ~ 69 members</p>
+        <h2 className="text-2xl font-bold mb-1">{classDetails.className}</h2>
+        {classDetails.code && (
+          <p className="text-sm text-muted-foreground mb-1">{classDetails.code}</p>
+        )}
+        <p className="text-sm text-muted-foreground">Group ~ {classDetails.memberCount} members</p>
 
         <div className="flex flex-wrap justify-center gap-6 mt-6">
           <IconButton icon={ImageIcon} label="Images" />
@@ -66,7 +132,7 @@ const GroupInfo = () => {
         </Button>
       </div>
 
-     
+      {/* Settings */}
       <div className="divide-y">
         <MenuItem icon={Bell} text="Notification" />
         <MenuItem icon={Palette} text="Chat Theme" />
@@ -79,31 +145,53 @@ const GroupInfo = () => {
         <MenuItem icon={Trash2} text="Clear Chat" />
       </div>
 
-      
+      {/* Members */}
       <div className="p-4 border-t">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">136 members</h3>
-          <Search className="w-5 h-5 text-muted-foreground" />
+          <h3 className="font-semibold">{classDetails.memberCount} members</h3>
         </div>
+        
+        {/* Search Input */}
+        <div className="mb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search members..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
         <div className="divide-y">
-          {members.map((member) => (
-            <button
-              key={member.id}
-              className="w-full flex items-center gap-3 py-3 hover:bg-muted/50 transition"
-            >
-              <img
-                src={member.avatar}
-                alt={member.name}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-              <span className="flex-1 text-left truncate">{member.name}</span>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
-            </button>
-          ))}
+          {filteredMembers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">No members found</p>
+          ) : (
+            filteredMembers.map((member) => (
+              <button
+                key={member.regNo}
+                onClick={() => navigate(`/member/${member.seed}`)}
+                className="w-full flex items-center gap-3 py-3 hover:bg-muted/50 transition"
+              >
+                <Avatar className="w-10 h-10 bg-accent">
+                  <AvatarFallback className="text-accent-foreground font-semibold">
+                    {member.name.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left">
+                  <div className="font-medium">{member.name}</div>
+                  <div className="text-xs text-muted-foreground">{member.regNo}</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              </button>
+            ))
+          )}
         </div>
       </div>
 
-    
+      {/* Save Options Modal */}
       {showSaveOptions && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center animate-fadeIn">
           <div className="bg-card w-full max-w-md rounded-t-2xl p-6 shadow-lg">
@@ -119,7 +207,7 @@ const GroupInfo = () => {
                 label="📱 Device Gallery"
                 description="Save to your phone's gallery"
                 onClick={() => {
-                  alert("Saving to Device Gallery...");
+                  toast.success("Saving to Device Gallery...");
                   setShowSaveOptions(false);
                 }}
               />
@@ -127,7 +215,7 @@ const GroupInfo = () => {
                 label="💾 Downloads Folder"
                 description="Store in your Downloads folder"
                 onClick={() => {
-                  alert("Saving to Downloads...");
+                  toast.success("Saving to Downloads...");
                   setShowSaveOptions(false);
                 }}
               />
@@ -135,7 +223,7 @@ const GroupInfo = () => {
                 label="☁️ Cloud Storage"
                 description="Backup to cloud (coming soon)"
                 onClick={() => {
-                  alert("Cloud saving not implemented yet.");
+                  toast.info("Cloud saving not implemented yet.");
                   setShowSaveOptions(false);
                 }}
               />
@@ -154,7 +242,6 @@ const GroupInfo = () => {
     </div>
   );
 };
-
 
 const MenuItem = ({
   icon: Icon,
@@ -178,7 +265,6 @@ const MenuItem = ({
   </button>
 );
 
-
 const OptionButton = ({
   label,
   description,
@@ -196,7 +282,6 @@ const OptionButton = ({
     <p className="text-sm text-muted-foreground">{description}</p>
   </button>
 );
-
 
 const IconButton = ({ icon: Icon, label }: { icon: any; label: string }) => (
   <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition">

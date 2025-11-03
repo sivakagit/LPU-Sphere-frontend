@@ -1,48 +1,35 @@
-// --- Imports ---
-require("dotenv").config();
-const express = require("express");
-const mongoose = require("mongoose");
-const jwt = require("jsonwebtoken");
-const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const http = require('http');
+const { Server } = require('socket.io');
 
-// --- Models ---
-const User = require("./models/User");
-const ClassModel = require("./models/Class");
-const Message = require("./models/Message");
+const User = require('./models/User');
+const ClassModel = require('./models/Class');
+const Message = require('./models/Message');
 
-// --- Express App ---
 const app = express();
 const server = http.createServer(app);
 
-// --- Config ---
-const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
-
-// --- Allowed Origins ---
 const allowedOrigins = [
   "http://localhost:5173",
   "https://lpu-sphere-frontend-rbpx.onrender.com",
 ];
 
-// --- Middleware ---
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+}));
+
 app.use(express.json());
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-  })
-);
 
-// --- MongoDB Connection ---
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB error:", err.message));
+const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
-// --- Socket.io Setup ---
+// Socket.io setup
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
@@ -50,103 +37,254 @@ const io = new Server(server, {
   },
 });
 
-// --- JWT Middleware ---
-const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ success: false, message: "No token provided" });
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error', err));
 
+// Auth middleware
+const authMiddleware = async (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  const token = auth.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload;
     next();
-  } catch {
-    return res.status(401).json({ success: false, message: "Invalid token" });
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
   }
 };
 
-// --- Auth Login ---
+// --- ROUTES ---
+
+// Health
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Login
 app.post("/api/auth/login", async (req, res) => {
+  const { regNo, password } = req.body;
+
+  console.log("🔹 Login attempt:", { regNo, password });
+
+  if (!regNo || !password) {
+    console.log("❌ Missing regNo or password");
+    return res.status(400).json({ error: "regNo and password required" });
+  }
+
   try {
-    const { regNo, password } = req.body;
-    if (!regNo || !password)
-      return res.status(400).json({ success: false, message: "regNo and password required" });
-
     const user = await User.findOne({ regNo });
-    if (!user)
-      return res.status(401).json({ success: false, message: "User not found" });
+    console.log("🔍 User found in DB:", user);
 
-    if (user.password !== password)
-      return res.status(401).json({ success: false, message: "Invalid password" });
+    if (!user) {
+      console.log("❌ No user found for:", regNo);
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    console.log("🧩 Comparing passwords:", { entered: password, stored: user.password });
+    const match = user.password === password;
+
+    if (!match) {
+      console.log("❌ Password mismatch");
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
 
     const token = jwt.sign(
-      { regNo: user.regNo, name: user.name, role: user.role },
+      { regNo: user.regNo, role: user.role, name: user.name },
       JWT_SECRET,
       { expiresIn: "8h" }
     );
 
-    const safeUser = {
-      regNo: user.regNo,
-      name: user.name,
-      role: user.role,
-      classes: user.classes,
-    };
+    console.log("✅ Login successful:", { regNo: user.regNo, role: user.role });
 
     res.json({
-      success: true,
-      message: "Login successful",
       token,
-      user: safeUser,
+      user: {
+        regNo: user.regNo,
+        name: user.name,
+        role: user.role,
+        classes: user.classes,
+      },
     });
   } catch (err) {
-    console.error("🔥 Login error:", err);
-    res.status(500).json({ success: false, message: "Server error during login" });
+    console.error("🔥 Server error during login:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// --- Fetch all chats for user ---
-app.get("/api/chats", authMiddleware, async (req, res) => {
-  const { regNo } = req.user;
-  const classes = await ClassModel.find({
-    $or: [{ members: regNo }, { faculty: regNo }],
-  }).lean();
+// Get chats (classes) for logged in user
+app.get('/api/chats', authMiddleware, async (req, res) => {
+  try {
+    const regNo = req.user.regNo;
+    console.log("📋 Fetching chats for user:", regNo);
 
-  const chats = await Promise.all(
-    classes.map(async (cls) => {
-      const lastMsg = await Message.findOne({ classId: cls.classId })
+    const classes = await ClassModel.find({
+      $or: [{ members: regNo }, { faculty: regNo }]
+    }).select('-__v').lean();
+
+    console.log("📚 Classes found:", classes);
+
+    const chats = classes.map(c => ({
+      id: c.classId,
+      name: c.className || c.name,
+      avatar: c.classId ? c.classId.substring(0, 5) : 'CLASS',
+      type: 'group',
+      lastMessage: null,
+      time: null,
+      unread: 0
+    }));
+
+    for (let i = 0; i < chats.length; i++) {
+      const msg = await Message.findOne({ classId: chats[i].id })
         .sort({ createdAt: -1 })
         .lean();
 
-      return {
-        id: cls.classId,
-        name: cls.className,
-        lastMessage: lastMsg?.text || "No messages yet",
-        time: lastMsg?.createdAt || null,
-      };
-    })
-  );
+      if (msg) {
+        chats[i].lastMessage = msg.text;
+        chats[i].time = msg.createdAt;
+      }
+    }
 
-  res.json({ success: true, chats });
+    console.log("💬 Chats prepared:", chats);
+    res.json({ chats });
+  } catch (err) {
+    console.error("❌ Error fetching chats:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-// --- Fetch messages for a group ---
-app.get("/api/chats/:classId/messages", authMiddleware, async (req, res) => {
-  const { classId } = req.params;
-  const { regNo } = req.user;
+// ✅ NEW: Get class details (for Group Info page)
+app.get('/api/chats/:classId', authMiddleware, async (req, res) => {
+  try {
+    const regNo = req.user.regNo;
+    const classId = req.params.classId;
 
-  const cls = await ClassModel.findOne({ classId });
-  if (!cls) return res.status(404).json({ success: false, message: "Class not found" });
-  if (!cls.members.includes(regNo) && cls.faculty !== regNo)
-    return res.status(403).json({ success: false, message: "Access denied" });
+    console.log("📋 Fetching class details:", classId, "for user:", regNo);
 
-  const messages = await Message.find({ classId }).sort({ createdAt: 1 });
-  res.json({ success: true, messages });
+    const cls = await ClassModel.findOne({ classId }).lean();
+
+    if (!cls) {
+      console.log("❌ Class not found:", classId);
+      return res.status(404).json({ error: 'Class not found' });
+    }
+
+    if (!cls.members.includes(regNo) && cls.faculty !== regNo) {
+      console.log("❌ User not authorized:", regNo);
+      return res.status(403).json({ error: 'Not a member of this class' });
+    }
+
+    // Get member details
+    const memberRegNos = [...cls.members];
+    if (cls.faculty && !memberRegNos.includes(cls.faculty)) {
+      memberRegNos.push(cls.faculty);
+    }
+
+    const members = await User.find({ regNo: { $in: memberRegNos } })
+      .select('regNo name')
+      .lean();
+
+    const classDetails = {
+      classId: cls.classId,
+      className: cls.className,
+      code: cls.code,
+      faculty: cls.faculty,
+      memberCount: cls.members.length,
+      members: members.map(m => ({
+        regNo: m.regNo,
+        name: m.name,
+        seed: m.name.toLowerCase().replace(/\s+/g, '-')
+      })),
+      createdAt: cls.createdAt
+    };
+
+    console.log("✅ Class details fetched:", classDetails);
+    res.json({ class: classDetails });
+  } catch (err) {
+    console.error("❌ Error fetching class details:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get messages for a class
+app.get('/api/chats/:classId/messages', authMiddleware, async (req, res) => {
+  try {
+    const regNo = req.user.regNo;
+    const classId = req.params.classId;
+
+    console.log("📨 Fetching messages for class:", classId, "user:", regNo);
+
+    const cls = await ClassModel.findOne({ classId });
+
+    if (!cls) {
+      console.log("❌ Class not found:", classId);
+      return res.status(404).json({ error: 'Class not found' });
+    }
+
+    if (!cls.members.includes(regNo) && cls.faculty !== regNo) {
+      console.log("❌ User not authorized:", regNo);
+      return res.status(403).json({ error: 'Not a member of this class' });
+    }
+
+    const messages = await Message.find({ classId })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    console.log(`✅ Found ${messages.length} messages for class ${classId}`);
+    res.json({ messages, className: cls.className });
+  } catch (err) {
+    console.error("❌ Error fetching messages:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Post a message to a class
+app.post('/api/chats/:classId/messages', authMiddleware, async (req, res) => {
+  try {
+    const regNo = req.user.regNo;
+    const classId = req.params.classId;
+    const { text } = req.body;
+
+    console.log("📤 Sending message to class:", classId, "from:", regNo);
+
+    if (!text) {
+      return res.status(400).json({ error: 'Text required' });
+    }
+
+    const cls = await ClassModel.findOne({ classId });
+
+    if (!cls) {
+      console.log("❌ Class not found:", classId);
+      return res.status(404).json({ error: 'Class not found' });
+    }
+
+    if (!cls.members.includes(regNo) && cls.faculty !== regNo) {
+      console.log("❌ User not authorized:", regNo);
+      return res.status(403).json({ error: 'Not a member of this class' });
+    }
+
+    const user = await User.findOne({ regNo });
+    const message = new Message({
+      classId,
+      senderRegNo: regNo,
+      senderName: user ? user.name : regNo,
+      text,
+      createdAt: new Date()
+    });
+
+    await message.save();
+    console.log("✅ Message saved:", message._id);
+
+    res.json({ message });
+  } catch (err) {
+    console.error("❌ Error posting message:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // --- SOCKET.IO ---
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
-  // ✅ NEW: Allow users to join their personal room for notifications
   socket.on("joinUserRoom", (regNo) => {
     socket.join(regNo);
     console.log(`👤 User ${regNo} joined personal room`);
@@ -171,11 +309,9 @@ io.on("connection", (socket) => {
       });
 
       await message.save();
-      
-      // Emit to all users in the room
+
       io.to(classId).emit("newMessage", message);
 
-      // ✅ NEW: Send notifications to all class members (except sender)
       const cls = await ClassModel.findOne({ classId }).lean();
       if (cls) {
         const recipients = [...cls.members, cls.faculty].filter(
@@ -203,9 +339,6 @@ io.on("connection", (socket) => {
     console.log("🔴 Disconnected:", socket.id);
   });
 });
-
-// --- Root ---
-app.get("/", (req, res) => res.send("✅ LPU Sphere backend running with realtime chat!"));
 
 server.listen(PORT, "0.0.0.0", () =>
   console.log(`🚀 Server running on port ${PORT}`)

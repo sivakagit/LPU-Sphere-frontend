@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Send, ArrowLeft } from "lucide-react";
+import { Send, ArrowLeft, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import api from "@/api/axios";
 import { socket } from "@/socket";
 
@@ -37,7 +44,7 @@ const ChatDetail = () => {
     }
   }, [id]);
 
-  // ✅ Fetch messages (authorized)
+  // ✅ Fetch messages and class info
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -45,6 +52,7 @@ const ChatDetail = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setMessages(res.data.messages || []);
+        setClassName(res.data.className || id || "Group Chat");
       } catch (err) {
         console.error("Error fetching messages:", err);
       } finally {
@@ -109,55 +117,100 @@ const ChatDetail = () => {
           className="mr-3 cursor-pointer" 
           onClick={() => navigate("/app", { state: { activeTab: "chats" } })} 
         />
-        <h1 className="text-lg font-semibold flex-1">
-          Group Chat {className && `- ${className}`}
-        </h1>
+        <div 
+          className="flex-1 cursor-pointer"
+          onClick={() => navigate(`/group/${id}`)}
+        >
+          <h1 className="text-lg font-semibold">
+            {className}
+          </h1>
+          <p className="text-xs opacity-80">Tap to view group info</p>
+        </div>
+        
+        {/* ✅ Options Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
+              <MoreVertical className="w-5 h-5" />
+            </button>
+          </DropdownMenuTrigger>
+          
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => navigate(`/group/${id}`)}>
+              Group Info
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              Search Messages
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              Mute Notifications
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive">
+              Exit Group
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((msg) => {
-          const isMe = msg.senderRegNo === userRegNo;
-          return (
-            <div
-              key={msg._id}
-              className={`flex mb-2 ${isMe ? "justify-end" : "justify-start"}`}
-            >
+      <div className="flex-1 overflow-y-auto p-4 bg-muted/20">
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <p className="text-muted-foreground mb-2">No messages yet</p>
+            <p className="text-sm text-muted-foreground">
+              Start the conversation!
+            </p>
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isMe = msg.senderRegNo === userRegNo;
+            return (
               <div
-                className={`p-3 rounded-xl max-w-xs ${
-                  isMe ? "bg-primary text-white" : "bg-gray-200 text-black"
-                }`}
+                key={msg._id}
+                className={`flex mb-3 ${isMe ? "justify-end" : "justify-start"}`}
               >
-                {!isMe && (
-                  <div className="text-xs font-bold mb-1">{msg.senderName}</div>
-                )}
-                <div className="break-words">{msg.text}</div>
-                <div className={`text-xs mt-1 ${isMe ? "text-white/70" : "text-gray-500"}`}>
-                  {new Date(msg.createdAt).toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
+                <div
+                  className={`p-3 rounded-2xl max-w-xs shadow-sm ${
+                    isMe 
+                      ? "bg-primary text-white rounded-br-sm" 
+                      : "bg-card text-foreground rounded-bl-sm"
+                  }`}
+                >
+                  {!isMe && (
+                    <div className="text-xs font-bold mb-1 text-primary">
+                      {msg.senderName}
+                    </div>
+                  )}
+                  <div className="break-words">{msg.text}</div>
+                  <div className={`text-xs mt-1 ${isMe ? "text-white/70" : "text-muted-foreground"}`}>
+                    {new Date(msg.createdAt).toLocaleTimeString([], { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="p-3 flex items-center gap-2 border-t bg-white">
+      <div className="p-3 flex items-center gap-2 border-t bg-card shadow-lg">
         <Input
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          className="flex-1"
+          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+          className="flex-1 rounded-full"
         />
         <Button 
           onClick={handleSend}
           disabled={!message.trim()}
           size="icon"
+          className="rounded-full"
         >
           <Send size={18} />
         </Button>
