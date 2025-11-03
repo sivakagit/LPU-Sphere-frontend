@@ -280,6 +280,34 @@ app.post('/api/chats/:classId/messages', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+// ✅ Get profile
+app.get("/api/profile", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findOne({ regNo: req.user.regNo }).select("-password -__v");
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ user });
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ✅ Update profile (description or links)
+app.put("/api/profile", authMiddleware, async (req, res) => {
+  try {
+    const { description, github_url, linkedin_url, portfolio_url } = req.body;
+    const user = await User.findOneAndUpdate(
+      { regNo: req.user.regNo },
+      { $set: { description, github_url, linkedin_url, portfolio_url } },
+      { new: true }
+    ).select("-password -__v");
+    res.json({ user });
+  } catch (err) {
+    console.error("Error updating profile:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 // --- SOCKET.IO ---
 io.on("connection", (socket) => {
