@@ -14,9 +14,11 @@ const app = express();
 const server = http.createServer(app);
 
 const allowedOrigins = [
-  "http://localhost:5173",
-  "https://lpu-sphere-frontend-rbpx.onrender.com",
+  "http://localhost:5173",                     // Vite local frontend
+  "http://localhost:8080",                     // If you’re running Vite on 8080
+  "https://lpu-sphere-frontend-rbpx.onrender.com",  // production frontend
 ];
+
 
 app.use(cors({
   origin: allowedOrigins,
